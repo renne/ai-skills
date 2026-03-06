@@ -178,12 +178,22 @@ pct set <ctid> --mp0 local-lvm:10,mp=/data
 
 # Bind-mount host directory (privileged containers only)
 pct set <ctid> --mp0 /host/path,mp=/container/path
+
+# Bind-mount read-only (e.g. shared config)
+pct set <ctid> --mp0 /host/path,mp=/container/path,ro=1
 ```
 
 In config file:
 ```
 mp0: local-lvm:vm-200-disk-1,mp=/data,size=10G
+
+# Bind-mount: host path directly, no storage volume
+mp0: /opt/coredns,mp=/etc/coredns,ro=1
 ```
+
+**Shared config across multiple containers:** Bind-mount a host directory read-only into several containers. Apps with a `reload` directive (e.g. CoreDNS `reload 2s`) will pick up changes automatically via inotify — no restart or sync mechanism needed.
+
+**Important:** Bind mounts require the container to be **stopped** before editing `/etc/pve/lxc/<ctid>.conf`. Adding the `mp` line while the container is running takes effect only after a restart.
 
 ---
 
@@ -201,6 +211,34 @@ features: nesting=1,keyctl=1,fuse=1
 | `keyctl=1` | Required for some apps (e.g., Keybase) |
 | `fuse=1` | FUSE filesystem support |
 | `mknod=1` | Allow mknod in unprivileged containers |
+
+### TUN Device Passthrough (WireGuard / NetBird)
+
+To run **NetBird** or any WireGuard-based VPN inside an LXC container, the container needs access to `/dev/net/tun` and the `NET_ADMIN` capability. Add these lines to `/etc/pve/lxc/<ctid>.conf`:
+
+```
+lxc.cgroup2.devices.allow: c 10:200 rwm
+lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
+```
+
+Without these, `netbird up` fails with `Failed to create WireGuard interface` or similar errors.
+
+---
+
+## Storage Notes
+
+**`local` storage on Proxmox does NOT support container rootfs directories** — it only supports ISO images and templates. Use `local-lvm` (LVM-thin) or `local-zfs` (ZFS) for container rootfs:
+
+```bash
+# ZFS-backed rootfs (use on ZFS hosts)
+pct create 107 local:vztmpl/debian-13-standard_13.0-1_amd64.tar.zst \
+  --rootfs local-zfs:2 \
+  --hostname dns1 ...
+
+# Templates are still referenced from local: even when rootfs is on local-zfs
+```
+
+**Template storage vs rootfs storage are independent** — you can download templates to `local:vztmpl/` and create the rootfs on `local-zfs` or `local-lvm`.
 
 ---
 

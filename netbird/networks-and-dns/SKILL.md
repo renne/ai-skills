@@ -161,6 +161,25 @@ Devices in office-a can now reach `192.168.2.x` and vice versa through the routi
 - Use **domain-based resources** (`*.internal`) to route DNS-resolved traffic without knowing specific IPs.
 - Check routing peer connectivity with `netbird status --detail` — look for the route entry and relay/direct status.
 - Multiple routing peers per network improve resilience; NetBird picks the lowest-latency available peer.
+- When a routing peer also runs CoreDNS, use `netbird up --disable-dns` to avoid port 53 conflicts and set that peer's group to DNS Unmanaged Mode.
+- Routes from removed peers can persist in `ip route table 7120` on other peers. Restart NetBird or add a static override in the main routing table. See the `routing-troubleshooting` skill for details.
+
+## Configuring Upstream Routers to Use NetBird-Integrated CoreDNS
+
+When CoreDNS runs on LXC containers in the LAN (not on a NetBird overlay IP), configure the upstream router to forward DNS queries to the container IPs:
+
+**Fritz!Box (Fritz!OS 8.x):**
+- LAN clients upstream: **Internet → Zugangsdaten** → edit connection → expand advanced settings → set DNSv4-Server to container IP(s)
+- This applies to the router that serves the relevant LAN segment; each Fritz!Box in a multi-router setup needs its own DNS upstream configured independently.
+
+**Docker daemon** (when CoreDNS moves off the Docker host):
+- Update `/etc/docker/daemon.json`: change `"dns"` from the old loopback/bridge IP to the new container LAN IPs
+- Restart Docker: `systemctl restart docker`
+- Container `dns:` stacks (e.g. Traefik for ACME) override this per-service and should be left intentionally pointing at public resolvers
+
+**Linux hosts with ifupdown:**
+- Update `dns-nameservers` in `/etc/network/interfaces`
+- Run `resolvconf -u` or bounce the interface to apply immediately
 
 ## References
 

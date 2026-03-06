@@ -239,6 +239,47 @@ docker logs coredns
 
 ---
 
+## Running CoreDNS and NetBird Agent in the Same Container
+
+Both CoreDNS and NetBird's built-in DNS proxy want to bind port 53. To resolve the conflict when the container acts as both a DNS server and a NetBird routing peer:
+
+**Disable NetBird's DNS proxy:**
+```bash
+netbird up --disable-dns
+```
+
+**Also set the group to DNS Unmanaged Mode** in the NetBird dashboard (the group the container's peer belongs to, e.g. "Routing Peers" → DNS settings → Unmanaged). This prevents the management server from pushing DNS config down to the container, which would otherwise re-enable the DNS proxy.
+
+Without both steps, the containers may fight over port 53 on restart.
+
+---
+
+## Catch-All Nameserver for All NetBird Peers
+
+To push a CoreDNS instance as the primary resolver to **all** NetBird peers (covering every domain, not just specific match domains):
+
+```json
+POST /api/dns/nameservers
+{
+  "name": "CoreDNS HA",
+  "nameservers": [
+    {"ip": "100.x.x.x", "ns_type": "udp", "port": 53},
+    {"ip": "100.x.x.y", "ns_type": "udp", "port": 53}
+  ],
+  "domains": [],
+  "primary": true,
+  "search_domains_enabled": false,
+  "enabled": true,
+  "groups": ["<all-peers-group-id>"]
+}
+```
+
+- `"domains": []` with `"primary": true` = catch-all (all queries routed through these nameservers)
+- Use the NetBird overlay IPs (`100.x.x.x`) of the CoreDNS containers so it works for peers regardless of LAN topology
+- LAN clients (not NetBird peers) should be configured via the upstream router's DNS settings instead
+
+---
+
 ## References
 
 - https://docs.netbird.io/manage/dns

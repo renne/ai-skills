@@ -222,6 +222,105 @@ Both return `200 OK` when the server is healthy/ready.
 }
 ```
 
+## Running CoreDNS as a systemd Service (bare-metal / LXC)
+
+When not using Docker, install the binary and create a systemd unit:
+
+```bash
+# Download and install binary
+VER=1.14.2
+curl -fsSL "https://github.com/coredns/coredns/releases/download/v${VER}/coredns_${VER}_linux_amd64.tgz" | tar -xz
+install -m 755 coredns /usr/local/bin/coredns
+```
+
+```ini
+# /etc/systemd/system/coredns.service
+[Unit]
+Description=CoreDNS DNS Server
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/coredns -conf /etc/coredns/Corefile
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+systemctl daemon-reload
+systemctl enable --now coredns
+```
+
+---
+
+## High-Availability CoreDNS Pattern (Two LXC Containers, Shared Corefile)
+
+Run two identical CoreDNS containers for HA. Share a single Corefile via a **Proxmox bind mount** so both reload together:
+
+1. **On the Proxmox host**, create the shared config directory:
+   ```bash
+   mkdir -p /opt/coredns
+   # Edit /opt/coredns/Corefile here — single source of truth
+   ```
+
+2. **In `/etc/pve/lxc/<ctid>.conf`** for each container:
+   ```
+   mp0: /opt/coredns,mp=/etc/coredns,ro=1
+   lxc.cgroup2.devices.allow: c 10:200 rwm
+   lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
+   ```
+
+3. **In the Corefile**, include `reload 2s`:
+   ```
+   (common) {
+       reload 2s
+       ...
+   }
+   ```
+   Both containers watch via inotify and reload within 2 seconds of any edit on the host — no restart needed.
+
+4. **DNS servers configured on upstream routers**: primary `10.0.0.X`, secondary `10.0.0.Y` (the two container LAN IPs).
+
+**Port conflict with NetBird**: If the container also runs a NetBird agent, its DNS proxy would conflict on port 53. Prevent this:
+```bash
+netbird up --disable-dns
+```
+Also set the "Routing Peers" group to **DNS Unmanaged Mode** in the NetBird dashboard to prevent the management server from pushing DNS config to the containers.
+
+---
+
+## Suffix Rewrite Pattern (apex domain bridging)
+
+Use `rewrite stop name suffix` to dynamically mirror all hostnames under one apex to another. This is essential when the router's built-in DNS uses a different apex (e.g. `fritz.box`) than your preferred domain (e.g. `example.com`):
+
+```corefile
+example.com {
+    # Rewrite *.example.com → *.fritz.box, rewrite answer back
+    rewrite stop name suffix "example.com" "fritz.box" answer auto
+
+    # Exceptions: names that exist in public DNS — stop before rewriting
+    rewrite stop name exact vps1.example.com vps1.example.com
+
+    # Forward rewritten (fritz.box) queries to the local router
+    forward fritz.box 10.0.0.1
+
+    # Forward public example.com names to authoritative DNS
+    import deSEC
+
+    cache 30
+    log
+    errors
+}
+```
+
+- `answer auto` rewrites the answer section back (e.g. `docker.fritz.box` → `docker.example.com`).
+- Put `rewrite stop name exact` rules for public names **before** the suffix rewrite so they are not rewritten.
+- Dynamic DHCP hostnames (e.g. laptop, phone) are automatically mirrored as long as the router registers them — no manual record maintenance needed.
+
+---
+
 ## References
 
 - [CoreDNS Manual](https://coredns.io/manual/toc/)
