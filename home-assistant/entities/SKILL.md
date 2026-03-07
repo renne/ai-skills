@@ -1,6 +1,6 @@
 ---
 name: entities
-description: Home Assistant entity registry and device registry covering entity IDs, naming, disabling, hidden entities, device management, renaming, and the entity state model. Use when managing entity or device names, disabling or hiding entities, understanding entity attributes, querying entity state, or reorganizing the device registry.
+description: Home Assistant entity registry and device registry covering entity IDs, naming, entity_category, disabling, hidden entities, device management, renaming, and the entity state model. Use when managing entity or device names, disabling or hiding entities, understanding entity attributes, querying entity state, diagnosing why sensors don't appear on the dashboard, or reorganizing the device registry.
 ---
 # Home Assistant Entities & Device Registry
 
@@ -80,6 +80,54 @@ Entities can be renamed without changing the underlying integration:
 - **Tool:** `ha_rename_entity(entity_id, new_name)` — changes the friendly name stored in the entity registry.
 
 > Renaming via the UI or API changes the **friendly name** only. The entity ID (`light.old_name`) is **not** automatically updated. To change the entity ID, use **Settings → Devices → entity → pencil icon → Entity ID field**.
+
+---
+
+## Entity Category
+
+The `entity_category` attribute classifies entities by their role. It affects visibility in the auto-generated Overview dashboard and entity pickers.
+
+| Value | Meaning | Dashboard visible? |
+|-------|---------|-------------------|
+| `null` (none) | Primary entity — main control or measurement | ✅ Yes |
+| `config` | Configuration parameter (e.g., a setting slider) | ❌ No |
+| `diagnostic` | Technical/informational data (e.g., signal strength, firmware version, electrical measurements) | ❌ No |
+
+### Impact on the auto-generated Overview dashboard
+
+The default Overview dashboard uses the `original-states` strategy, which **excludes any entity where `entity_category` is non-null**. This means:
+
+- Switches, lights, and primary controls (`entity_category: null`) appear as tiles.
+- Sensors classified as `diagnostic` by their integration are hidden — even if they have useful data like power consumption, voltage, or current.
+
+**Common gotcha — Matter electrical measurement sensors:**  
+The Matter integration assigns `entity_category = diagnostic` to all electrical measurement sensors (power, voltage, current, energy). These sensors will NOT appear on the auto-generated dashboard even though they have live data and are fully enabled. The device page in Settings → Devices shows them, but the Overview dashboard does not.
+
+### Fixing missing sensors on the auto-generated dashboard
+
+**Option 1 — Clear the entity category (persistent fix):**
+
+1. Go to **Settings → Devices & Services → [Integration] → [Device]**
+2. Click the sensor entity → pencil icon
+3. Set "Entity category" to *(none)* → Save
+
+The entity will now appear on the auto-generated dashboard.
+
+**Option 2 — Add a manual card to the dashboard:**
+
+Edit the Overview dashboard → Add Card → Entities or Tile card → manually add the sensor entity IDs.
+
+**Option 3 — Use the Energy dashboard:**
+
+For power/energy sensors with `device_class: power` or `device_class: energy`, use the dedicated Energy dashboard (Settings → Energy), which shows them regardless of `entity_category`.
+
+### Checking entity_category via ha-mcp
+
+```python
+# Get entity registry entry to check category
+entity = ha_get_entity(entity_id)
+print(entity["entity_category"])  # null, "config", or "diagnostic"
+```
 
 ---
 

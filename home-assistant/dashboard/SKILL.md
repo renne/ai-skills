@@ -415,12 +415,30 @@ views:
 
 ---
 
+## Auto-Generated Overview Dashboard (original-states strategy)
+
+The default Overview dashboard uses the `original-states` strategy to auto-generate its layout from devices and areas. It applies these filters when deciding what to show:
+
+- ✅ Entities with `entity_category = null` (primary controls/sensors) **are shown**
+- ❌ Entities with `entity_category = "diagnostic"` or `"config"` **are hidden**
+- ❌ Disabled entities are hidden
+- ❌ Hidden entities are hidden
+
+**Consequence:** Some integrations (notably Matter) classify measurement sensors (power, voltage, current, energy) as `entity_category = diagnostic`. These sensors will not appear on the auto-generated dashboard even though they are enabled and have live data.
+
+To make them visible, either:
+1. Clear the entity category: **Settings → Devices → entity → Edit → Entity category → (none)**
+2. Add them manually via a card in dashboard edit mode
+
+---
+
 ## Tips
 
 - Use **Edit Dashboard → Raw Configuration Editor** to toggle to YAML in storage mode.
 - Press `c` to open the quick search/command palette in the dashboard.
 - Use `!include` in YAML mode dashboards to split view definitions into separate files.
 - Test template values in **Developer Tools → Template** before using them in `markdown` cards.
+- If an entity exists and has data but doesn't appear on the auto-generated dashboard, check its `entity_category` — `diagnostic` entities are always excluded from auto-generation.
 
 ## References
 
