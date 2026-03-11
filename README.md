@@ -64,6 +64,7 @@ Each skill is a directory containing a `SKILL.md` file following the [VS Code Ag
 | [Self-Hosted Deployment (Docker Compose, Config, IdP)](netbird/self-hosted/SKILL.md) | https://docs.netbird.io/selfhosted/selfhosted-quickstart |
 | [MCP Server (AI Management via mcp-netbird)](netbird/mcp-netbird/SKILL.md) | https://github.com/XNet-NGO/mcp-netbird |
 | [DNS + CoreDNS Integration (Custom Zones vs CoreDNS, forwarder, internal zone routing, Corefile patterns)](netbird/dns-coredns-integration/SKILL.md) | https://docs.netbird.io/manage/dns |
+| [SSH Server (dashboard SSH, --allow-server-ssh flags, OAuth2 re-auth root cause, container apply, --disable-ssh-auth)](netbird/ssh/SKILL.md) | https://docs.netbird.io/manage/ssh |
 
 ### Proxmox VE
 
