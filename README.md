@@ -117,6 +117,12 @@ Skills from [VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesom
 | [Providers (Docker labels, Kubernetes IngressRoute CRDs, file provider, Consul/etcd)](traefik/providers/SKILL.md) | https://doc.traefik.io/traefik/providers/overview/ |
 | [Observability (Prometheus metrics, OpenTelemetry/Jaeger tracing, access logs, API dashboard)](traefik/observability/SKILL.md) | https://doc.traefik.io/traefik/observe/overview/ |
 
+### INWX
+
+| Skill | Source |
+|-------|--------|
+| [DNS and ACME Migration (DomRobot API, delegation changes, DNSSEC recovery, Proxmox/Traefik DNS-01)](inwx/dns-and-acme-migration/SKILL.md) | https://www.inwx.de/en/help/apicommands |
+
 ### Matter (Connected Home over IP)
 
 | Skill | Source |
