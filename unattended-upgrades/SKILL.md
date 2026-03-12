@@ -112,6 +112,101 @@ netbird-ui
 
 ---
 
+## Gotchas and Known Issues
+
+### Stale apt cache causes missed upgrades
+
+`unattended-upgrade` only upgrades to the **apt candidate at runtime**. If `apt-get update`
+hasn't been run since a new package version was published to the repository, the package will
+not be upgraded even if a newer version is available in the repo.
+
+**Symptom:** `unattended-upgrade -v` runs successfully but skips a package you expected to upgrade.
+
+**Fix:** Run `apt-get update` explicitly before `unattended-upgrade`:
+
+```bash
+apt-get update && unattended-upgrade -v
+```
+
+The `APT::Periodic::Update-Package-Lists "1"` setting in `20auto-upgrades` schedules daily
+updates, but the first time or if the timer hasn't fired yet, the cache may be stale.
+
+---
+
+### DNS circular dependency on NetBird routing peers (LXC containers)
+
+**Problem:** If an LXC container resolves DNS exclusively through NetBird routing peers (e.g.,
+`resolv.conf` points only to `10.0.0.7` / `10.0.0.8` reachable via NetBird routing), and
+NetBird disconnects, DNS resolution fails — which prevents resolving the NetBird management
+server — which prevents reconnecting → **deadlock**.
+
+**Symptom:** After rebooting or NetBird restarting in the container, `apt-get update` fails
+with "Temporary failure resolving..." and `netbird status` shows Disconnected.
+
+**Fix:** Always add a **local DNS fallback** that is reachable without NetBird (e.g., the
+LAN gateway). For an LXC container on Proxmox, use `pct set` to persist the nameservers:
+
+```bash
+# On the Proxmox host:
+pct set <CTID> --nameserver "10.0.0.7 10.0.0.8 192.168.178.1"
+```
+
+Then immediately update the live container's resolv.conf:
+
+```bash
+# Append the fallback directly to the running container's resolv.conf
+echo "nameserver 192.168.178.1" >> /proc/$(pct exec <CTID> -- sh -c 'echo $$')/root/1/etc/resolv.conf
+# Or simpler:
+pct exec <CTID> -- sh -c 'echo "nameserver 192.168.178.1" >> /etc/resolv.conf'
+```
+
+**Key rule:** Any NetBird routing peer that uses DNS via the overlay must have a local fallback
+DNS that works without NetBird being connected.
+
+---
+
+### Proxmox LXC resolv.conf is managed by PVE
+
+Proxmox regenerates `/etc/resolv.conf` inside LXC containers on restart from the PVE
+container config. **Direct edits to `/etc/resolv.conf` inside the container are overwritten.**
+
+To persist DNS changes on an LXC container:
+
+```bash
+# On the Proxmox host (not inside the container):
+pct set <CTID> --nameserver "dns1 dns2 dns3"
+```
+
+The PVE block in `/etc/resolv.conf` is delimited by:
+```
+# --- BEGIN PVE ---
+nameserver 10.0.0.7
+nameserver 10.0.0.8
+# --- END PVE ---
+```
+
+Lines appended below the PVE block survive restarts **only** if persisted via `pct set`.
+
+---
+
+### SSH host key changes after NetBird restart in LXC containers
+
+After restarting the NetBird service in an LXC container, the SSH host key may change
+(container overlay filesystem issue). Additionally, `/root/.ssh/authorized_keys` may
+disappear.
+
+**Symptom:** SSH connection fails with "REMOTE HOST IDENTIFICATION HAS CHANGED" or
+"Permission denied (publickey)".
+
+**Fix:**
+1. Clear the old host key locally: `ssh-keygen -f ~/.ssh/known_hosts -R '<host-ip>'`
+2. Re-add authorized_keys via `pct exec` from the Proxmox host:
+   ```bash
+   ssh root@<proxmox-host> "pct exec <CTID> -- bash -c 'mkdir -p /root/.ssh && echo \"<pubkey>\" >> /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys'"
+   ```
+
+---
+
 ## Notes
 
 - **Debian 13 (trixie)**: `unattended-upgrades` is not pre-installed. Default allowed origins are:
