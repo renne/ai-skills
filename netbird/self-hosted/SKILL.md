@@ -93,6 +93,15 @@ and add TCP passthrough only for those names.
 
 For wildcard DNS-01 certificates issued outside NetBird, use the reverse-proxy static certificate mode:
 
+Custom domain verification for the NetBird reverse proxy checks the wildcard `*.<domain>`, not the apex itself. That means an apex base domain like `example.com` is still usable even though the apex cannot be a `CNAME` — the required record is:
+
+```text
+*.example.com CNAME proxy.example.com
+```
+
+This is especially useful when the public apex must remain a normal `A`/`AAAA` record (for example, behind an existing Traefik ingress) while NetBird validates and serves subdomains under the same base domain.
+
+
 ```text
 NB_PROXY_CERTIFICATE_DIRECTORY=/certs/live/proxy-shared
 NB_PROXY_CERTIFICATE_FILE=fullchain.pem
