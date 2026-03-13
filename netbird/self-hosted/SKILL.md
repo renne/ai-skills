@@ -74,6 +74,35 @@ The dashboard is accessible at `https://netbird.example.com`.
 
 ---
 
+## Separate-Host Reverse Proxy Behind Existing Traefik
+
+When the NetBird reverse-proxy runs on a different host than the management stack, the management-side reverse proxy must expose the gRPC proxy service path explicitly. With Traefik, add an HTTP router matching:
+
+```text
+Host(`netbird.example.com`) && PathPrefix(`/management.ProxyService/`)
+```
+
+and send it to the same h2c management backend used for `ManagementService`.
+
+If an existing Traefik instance is still serving live HTTPS applications on the same `:443` entrypoint, do not add a literal `HostSNI(*)` TCP passthrough yet. Traefik evaluates TCP routers before HTTP routers, so a catch-all TCP rule will steal all HTTPS traffic. Use a dedicated coexistence domain first, for example:
+
+- `proxy.example.com`
+- `*.proxy.example.com`
+
+and add TCP passthrough only for those names.
+
+For wildcard DNS-01 certificates issued outside NetBird, use the reverse-proxy static certificate mode:
+
+```text
+NB_PROXY_CERTIFICATE_DIRECTORY=/certs/live/proxy-shared
+NB_PROXY_CERTIFICATE_FILE=fullchain.pem
+NB_PROXY_CERTIFICATE_KEY_FILE=privkey.pem
+```
+
+If the key is mounted with standard Certbot permissions (`0600` root-owned), the container may need to run as root or the mounted files need adjusted read permissions.
+
+---
+
 ## Docker Compose Structure
 
 A typical self-hosted deployment includes these services:

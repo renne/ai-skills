@@ -40,6 +40,7 @@ Important behavior:
 - `domain.update` must use the parameter `ns`, not `nserver`
 - `domain.info` returns the active nameserver set in `resData.ns`
 - `nameserver.importZone` can be incomplete or lossy for some zones; verify record parity afterwards
+- XML-RPC sessions depend on cookies. If you automate `account.login` and `account.unlock` yourself, use a cookie-aware transport or HTTP client; otherwise login and unlock may appear to succeed while later commands fail because the session was not preserved.
 
 ## Safe migration order
 
@@ -65,6 +66,19 @@ dnssec.enablednssec {domainName: <domain>}
 ```
 
 7. Verify `dnssec.info` shows `dnssecStatus: AUTO`.
+
+DNSSEC changes can be asynchronous. After `dnssec.enablednssec`, INWX may report `AUTO` before authoritative nameservers publish the new `DNSKEY`, and the parent DS can lag or temporarily disappear while the chain stabilizes. If ACME DNS-01 fails with DNSSEC validation errors during that window:
+
+1. Query authoritative `DNSKEY` directly from `ns.inwx.de` / `ns2.inwx.de` / `ns3.inwx.eu`
+2. Query the parent DS directly (for `.de`, `@a.nic.de`)
+3. If the zone is stuck with mismatched DS and no authoritative `DNSKEY`, a clean cycle of:
+
+```text
+dnssec.deleteall {domainName: <domain>}
+dnssec.enablednssec {domainName: <domain>}
+```
+
+can re-trigger signing and DS publication cleanly
 
 ## Record-by-record sync is safer than zone import
 
