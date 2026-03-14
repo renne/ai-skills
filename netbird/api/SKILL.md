@@ -215,6 +215,45 @@ Key peer fields:
 | `block_inbound` | Inbound connections blocked |
 | `lazy_connection_enabled` | Lazy connection mode enabled |
 
+#### Peer Naming in Docker
+
+When running the Netbird agent in Docker, the peer's `name` is taken from the container's hostname. To get stable, human-readable peer names:
+
+1. Set `hostname:` explicitly in `docker-compose.yml`:
+   ```yaml
+   services:
+     docker-proxy:
+       image: netbirdio/netbird:latest
+       hostname: docker-proxy   # ← controls the Netbird peer name
+       volumes:
+         - ./agent-config:/etc/netbird
+   ```
+2. Persist the agent config volume (`./agent-config:/etc/netbird`). If the volume is lost, the agent registers as a **new peer** with a new ID on next start (using the `NB_SETUP_KEY`), leaving an orphaned stale peer behind.
+
+**Note**: Container ID-based hostnames (e.g., `f2df5d0d8e4b`) are the default when no `hostname:` is set — this creates confusingly-named peers that change on every container recreate.
+
+#### Peer Deletion Constraint (412 Precondition Failed)
+
+You **cannot delete a peer** that is currently referenced as the `peer` field of a **network router**. The API returns `412 Precondition Failed` with the message `peer is linked to a network router: <routerId>`.
+
+**Correct deletion order:**
+1. Update the network router to point to a different (or no) peer: `PUT /api/networks/{networkId}/routers/{routerId}`
+2. Wait a moment for the change to propagate
+3. Then delete the old peer: `DELETE /api/peers/{peerId}`
+
+Attempting to delete immediately after updating the router can still return 412. Retry after a few seconds.
+
+**To identify which router is blocking the delete**: the error message includes the router ID. Use `GET /api/networks/{networkId}/routers/{routerId}` to inspect it.
+
+#### Stale Peer Cleanup
+
+Container restarts that lose or reset the agent-config volume create duplicate peers. To clean up:
+
+1. List peers via `GET /api/peers` — look for `connected: false` and old hostnames (container IDs)
+2. For each stale peer, check if it is referenced by a network router
+3. If referenced, update the router first (see above), then delete
+4. If not referenced, delete directly
+
 ---
 
 ### Setup Keys
