@@ -326,12 +326,57 @@ Mitigations:
 - add public fallback resolvers on the host
 - if a Docker container still fails through `127.0.0.11`, use an explicit per-service `dns:` override
 
+### ⚠️ DNS Hijacking: Primary Nameserver Pitfall
+
+**Symptom**: After WireGuard session keys expire (ENOKEY) or VPN peers disconnect, ALL internet DNS resolution fails — not just internal domains.
+
+**Cause**: A nameserver group configured with `primary: true` and **empty domains** captures ALL DNS queries and routes them through VPN-only servers (e.g., `10.0.0.7:53`, `10.0.0.8:53`). When the WireGuard tunnel loses its session key (`ENOKEY`), those VPN-only servers become unreachable — taking ALL DNS with them.
+
+**Diagnosis**:
+```bash
+# On the peer: check which interfaces/domains get which nameservers
+resolvectl status
+
+# Look for wt0 with no domain restrictions (matches everything):
+# Link 5 (wt0)
+#   DNS Domain: ~.   ← "~." means catch-all for ALL queries  ← PROBLEM
+
+# Via Netbird MCP or API: list nameserver groups
+# Look for any group where primary=true and domains=[]
+```
+
+**Fix**: In the Netbird dashboard (or via API/MCP), change the nameserver that should only handle internal domains:
+- Set `primary: false`
+- Set `domains: ["yourdomain.com"]` — only resolve your internal domain(s) through this nameserver
+- Leave public DNS to the peer's own system resolver
+
+**Via MCP**:
+```
+netbird-update_netbird_nameserver(
+  nameserver_id="<id>",
+  primary=false,
+  domains=["yourdomain.com"],
+  nameservers=[...],  # must include even if unchanged
+  groups=[...],       # must include even if unchanged
+)
+```
+
+**Note**: `nameservers` array is required in every update call even when not changing IPs — omitting it causes a 422 error.
+
+**Verify fix**:
+```bash
+resolvectl status wt0
+# Should show specific domains only (e.g., bartschnet.de nb.bartschnet.de ~115.100.in-addr.arpa)
+# Should NOT show ~. (catch-all)
+```
+
 ### Common Issues
 
 | Issue | Likely Cause | Fix |
 |-------|-------------|-----|
 | Can't resolve internal domains | Wrong/missing match domain nameserver, or peer not in distribution group | Check nameserver config and distribution groups in dashboard |
 | Public DNS broken | No primary nameserver configured or primary unreachable | Add primary nameserver (empty match domains) assigned to all peers |
+| **All DNS fails when WireGuard loses key** | Nameserver with `primary=true` and `domains=[]` routes ALL DNS through VPN-only servers | Set `primary=false` and specify exact match domains — see DNS Hijacking pitfall above |
 | Android ignores custom DNS | Private DNS is enabled | Settings → Network & Internet → Private DNS → Off |
 | Match domains not working | Using macOS/Windows without a primary nameserver | Configure at least one primary nameserver |
 | Routing peer can't resolve domain resources | Routing peer's group not in nameserver distribution | Add routing peer's group to the nameserver's distribution groups |
