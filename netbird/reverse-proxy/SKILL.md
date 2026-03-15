@@ -463,6 +463,57 @@ Ensure cert files in the mounted volume are readable by uid 1000 (`chmod o+r` on
 
 ---
 
+## Operational: Domain-type Resources Log "invalid IP" — Reverse-Proxy Targets Silently Broken
+
+**Symptom:** After creating a reverse-proxy service linked to a network resource, the proxy logs show:
+
+```
+ERRO failed to parse target URL for path, skipping
+error: parse "http://invalid%20IP:8000/": invalid URL escape "%20"
+target: http://invalid%20IP:8000/
+```
+
+The proxy receives a mapping update with `target:"http://invalid%20IP:8000/"` — the literal string `"invalid IP"` URL-encoded.
+
+**Root cause:** The NetBird management server resolves a service target's `host` field by calling `net.ParseIP()` on the resource's address. Resources of `type: "domain"` have a DNS hostname (e.g., `grampsweb.proxy`, `paperless.proxy`) as their address. Since `net.ParseIP()` returns `nil` for a hostname, the management server substitutes the literal string `"invalid IP"` as a placeholder before sending the mapping to the proxy. The proxy then tries to construct `http://invalid IP:8000/`, fails URL parsing, and skips the route entirely — the service is silently unrouted.
+
+**This is independent of the root-user/nbnet.NewDialer() issue** — even if the proxy runs as non-root, domain-type resource targets will always fail.
+
+**Root cause in resource configuration:**
+
+```
+# BAD — resource address is a DNS hostname → type: "domain" → "invalid IP"
+address: grampsweb.proxy    # Docker service name / DNS name
+
+# GOOD — resource address is a valid IP → type: "host" → IP used correctly
+address: 172.0.4.6          # Actual container/host IP address
+```
+
+**Fix:** Network resources used as reverse-proxy service targets must be of `type: "host"` — created with a valid IP address, not a DNS hostname. Use the container's actual IP address (e.g., `172.0.4.6`) not its Docker service DNS name (`grampsweb.proxy`).
+
+```bash
+# Create a host-type resource with IP address
+curl -s -X POST "https://netbird.bartschnet.de/api/networks/<network_id>/resources" \
+  -H "Authorization: Token <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "grampsweb",
+    "address": "172.0.4.6",   # ← IP address, not hostname
+    "type": "host",            # ← "host" not "domain"
+    "enabled": true,
+    "groups": [{"id": "<all-group-id>"}]
+  }'
+```
+
+**Verify the resource type** before linking to a reverse-proxy service:
+```bash
+curl -s "https://netbird.bartschnet.de/api/networks/<id>/resources" \
+  -H "Authorization: Token <token>" | jq '.[] | {name, address, type}'
+# Must show: "type": "host", "address": "172.x.x.x"
+```
+
+---
+
 ## References
 
 - [Reverse Proxy Overview](https://docs.netbird.io/manage/reverse-proxy)
