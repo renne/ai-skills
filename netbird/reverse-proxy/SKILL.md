@@ -596,6 +596,123 @@ curl -s "https://netbird.bartschnet.de/api/networks/<id>/resources/<resource_id>
 
 ---
 
+## Architecture: NetBird Proxy vs NetBird Agent
+
+These are two **separate containers** with completely different roles:
+
+| | NetBird Proxy | NetBird Agent |
+|---|---|---|
+| **Image** | `netbirdio/reverse-proxy:latest` | `netbirdio/netbird:latest` |
+| **Role** | HTTPS reverse proxy binary | WireGuard VPN client |
+| **Network interface** | None (no `wt0`) | `wt0` (WireGuard) |
+| **NetBird IP** | None | `100.x.x.x` (peer in mesh) |
+| **DNS resolver** | Hardcoded `100.115.255.254` (Agent's virtual DNS) | Runs the virtual DNS at `100.115.255.254` |
+
+The Proxy binary's custom dialer (`roundtrip/netbird.go`) **hardcodes `100.115.255.254`** as its DNS resolver for `target_type: domain`. This address is the Agent container's virtual WireGuard DNS — it only resolves NetBird peer names, **not Docker-internal container names**.
+
+> **The Docker host VM does NOT need a natively installed NetBird agent.** The Agent runs as a container only. Do not confuse container-based agent setup with host-level NetBird installation.
+
+---
+
+## Workaround: CoreDNS Sidecar for Docker Hostname Resolution
+
+When you need `target_type: domain` to resolve Docker container names (bridging the Proxy's hardcoded WireGuard DNS to Docker's embedded DNS), deploy a CoreDNS sidecar:
+
+### Setup
+
+```yaml
+# In the same Docker Compose stack as netbird-proxy and netbird-docker-proxy (Agent):
+  netbird-dns-sidecar:
+    image: coredns/coredns:latest
+    command: ["-conf", "/etc/coredns/Corefile"]
+    volumes:
+      - ./coredns:/etc/coredns:ro
+    networks:
+      proxy:
+        ipv4_address: 172.0.4.15   # static IP required; Agent queries this address
+    restart: unless-stopped
+```
+
+```
+# coredns/Corefile — bridges NetBird WireGuard DNS → Docker embedded DNS
+. {
+    forward . 127.0.0.11    # Docker embedded DNS resolver
+    errors
+    log
+}
+```
+
+### NetBird nameserver rule
+
+Create a NetBird nameserver pointing domain `proxy` (or whatever your Docker network name is) to the CoreDNS sidecar IP:
+
+```bash
+curl -s -X POST "https://netbird.bartschnet.de/api/dns/nameservers" \
+  -H "Authorization: Token <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "docker-proxy-dns",
+    "description": "CoreDNS sidecar bridging NetBird DNS to Docker embedded DNS",
+    "nameservers": [{"ip": "172.0.4.15", "ns_type": "udp", "port": 53}],
+    "enabled": true,
+    "groups": ["<all-group-id>"],
+    "primary": false,
+    "domains": ["proxy"],
+    "search_domains_enabled": false
+  }'
+```
+
+### Verify
+
+```bash
+# coredns/coredns:latest is distroless — no shell. Test from Docker host:
+dig @172.0.4.15 grampsweb.proxy
+# Should return the container's Docker bridge IP (e.g., 172.0.4.6)
+```
+
+### Caveats
+
+- `coredns/coredns:latest` is a distroless image — no shell, cannot `exec` into it for debugging.
+- The NetBird nameserver rule tells the **Agent** (`100.115.255.254`) to forward `.proxy` queries to `172.0.4.15`, which then forwards to Docker's `127.0.0.11`. This only works because the CoreDNS container is on the same Docker network as the Agent.
+- Even with this working, the `proxy_cluster` field on services (see below) has an additional POST-only constraint that blocked full deployment.
+
+---
+
+## API Quirk: `proxy_cluster` is POST-only
+
+The `proxy_cluster` field on a reverse-proxy service can **only be set at creation time (POST)**. Attempts to update it via PUT are **silently ignored** — the response returns 200 but the field remains unchanged.
+
+```bash
+# ✅ Works: set proxy_cluster at creation
+POST /api/reverse-proxies/services
+{ "proxy_cluster": "proxy.bartschnet.de", ... }
+
+# ❌ Broken: update proxy_cluster via PUT — field is silently ignored
+PUT /api/reverse-proxies/services/<id>
+{ "proxy_cluster": "proxy.bartschnet.de", ... }  # → ignored, old value kept
+```
+
+**Workaround:** Delete the service and recreate it with the correct `proxy_cluster` value if you need to change it.
+
+---
+
+## API Quirk: PUT is a Full Replace
+
+PUT to `/api/reverse-proxies/services/<id>` is a **full replacement** — omitting any field zeros it out. Always include ALL fields when updating.
+
+```bash
+# BAD — omitting name causes 422
+PUT { "targets": [...] }
+# → HTTP 422: name is required
+
+# GOOD — include all fields
+PUT { "name": "my-service", "domain": "...", "proxy_cluster": "...", "targets": [...] }
+```
+
+Similarly, `port: 0` is silently accepted but the service appears active while failing (no port = cannot connect).
+
+---
+
 ## References
 
 - [Reverse Proxy Overview](https://docs.netbird.io/manage/reverse-proxy)
