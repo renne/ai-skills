@@ -511,29 +511,13 @@ address: 172.0.4.6    # ← IP address, type auto-set to "host"
 
 **Option B — Use `target_type: domain` with a domain-type resource:**
 
-```
-# Create resource with DNS hostname
-address: grampsweb    # ← management sets resource.Domain = "grampsweb"
-# → proxy resolves this name using system /etc/resolv.conf
-```
+> ⚠️ **CONFIRMED BROKEN (runtime test 2026-03-15):** Even with `user: "1000:1000"`, `target_type: domain` fails with Docker container names. The proxy's `roundtrip/netbird.go` custom dialer resolves DNS via the NetBird WireGuard DNS (`100.115.255.254`) regardless of `/etc/resolv.conf`. Docker-only container names are NOT resolvable via `100.115.255.254` → `server misbehaving`. Do NOT use `target_type: domain` with Docker container names.
 
-**How `target_type: domain` resolution actually works (CONFIRMED from source code + binary analysis):**
+**What `target_type: domain` actually does (confirmed from proxy logs):**
 
-DNS resolution for `target_type: domain` happens inside the **proxy binary** at connection time using the standard Go net.Resolver, which reads the system `/etc/resolv.conf`. The management server does NOT perform any DNS lookup — `manager.go` `replaceHostByLookup()` simply sets `target.Host = resource.Domain` (passes the domain string as-is to the proxy).
+The `netbird.go` round-tripper routes DNS resolution through the WireGuard network's DNS (`100.115.255.254`) — not the system `/etc/resolv.conf`. Source code analysis was wrong: the custom dialer overrides Go's default resolver. This means `target_type: domain` can only resolve names that are registered in the NetBird WireGuard DNS, NOT Docker-only container names.
 
-`100.115.255.254` is **NOT hardcoded** in the proxy binary (confirmed by `strings /go/bin/netbird-proxy | grep "100.115"` returning nothing). It only appears as a DNS server when:
-
-1. The proxy container runs as **root** → WireGuard kernel module succeeds → NetBird modifies `/etc/resolv.conf` to `100.115.255.254` → Go resolver uses that → Docker container names fail (`server misbehaving`)
-2. The proxy container runs as **uid 1000** → no WireGuard capability → `/etc/resolv.conf` stays as Docker's `127.0.0.11` → Docker embedded DNS resolves container names on the same network ✅
-
-Historical failures (`lookup grampsweb. on 100.115.255.254: server misbehaving`) occurred exclusively when the proxy ran as **root** and WireGuard replaced the container's DNS.
-
-**With `user: "1000:1000"` (current setup), `target_type: domain` works for Docker container names** because:
-- No WireGuard interface → Docker embedded DNS `127.0.0.11` remains active
-- `127.0.0.11` resolves container names on the same Docker network
-- `address: "grampsweb"` → `resource.Domain = "grampsweb"` → proxy resolves `grampsweb` → `172.0.4.6` ✅
-
-**Both options are valid when the proxy runs as uid 1000:**
+**The only valid option for Docker container names:**
 
 **Root cause in resource configuration:**
 
@@ -546,12 +530,13 @@ Result:   resource.Prefix is zero → "invalid IP" → URL parse error → 404
 Service:  target_type: host,   target_id: <resource with address="172.0.4.6">
 Result:   resource.Prefix.Addr() → "172.0.4.6" → http://172.0.4.6:5000/ ✅
 
-# GOOD — matching target_type: domain service → domain resource (DNS name)
-Service:  target_type: domain, target_id: <resource with address="grampsweb.proxy">
-Result:   resource.Domain → "grampsweb.proxy" → http://grampsweb.proxy:5000/ ✅
+# BAD — target_type: domain → resolves via WireGuard DNS (100.115.255.254), NOT Docker DNS
+# Docker container names are NOT resolvable via WireGuard DNS → always fails with "server misbehaving"
+Service:  target_type: domain, target_id: <resource with address="grampsweb">
+Result:   lookup grampsweb on 100.115.255.254: server misbehaving → 502 ❌
 ```
 
-**Fix:** Either create network resources with IP addresses and use `target_type: host`, or use the correct `target_type: domain` when the resource has a DNS hostname. The `target_type` in the service must match the address type of the linked network resource.
+**Fix:** Create network resources with IP addresses and use `target_type: host`. The `target_type: domain` option is broken for Docker container names because the proxy's custom dialer uses WireGuard DNS (`100.115.255.254`) which cannot resolve Docker-internal hostnames. Always use IP addresses with `target_type: host` for Docker backends.
 
 ```bash
 # Create a host-type resource with IP address (use target_type: host in service)
@@ -590,6 +575,23 @@ curl -s "https://netbird.bartschnet.de/api/networks/<id>/resources" \
 curl -s "https://netbird.bartschnet.de/api/reverse-proxies/services/<id>" \
   -H "Authorization: Token <token>" | jq '.targets[] | {target_type, host, port}'
 # If "host" in targets is "invalid IP" → target_type/resource type mismatch!
+```
+
+**⚠️ Critical gotcha: resource `enabled` field defaults to `false` on PUT (confirmed 2026-03-15):**
+
+When updating a network resource via PUT (e.g., changing type from domain back to host), the `enabled` field is NOT preserved — it resets to `false` unless explicitly included in the request body. After a PUT rollback, always include `"enabled": true` explicitly or the resource will be silently disabled, causing the proxy to receive `"host": "invalid IP"` for the service even after a successful rollback.
+
+```bash
+# Always include "enabled": true in any PUT to a resource:
+curl -s -X PUT "https://netbird.bartschnet.de/api/networks/<id>/resources/<resource_id>" \
+  -H "Authorization: Token <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"grampsweb","address":"172.0.4.6","enabled":true,"groups":["<all-group-id>"]}'
+
+# Verify the resource is enabled after PUT:
+curl -s "https://netbird.bartschnet.de/api/networks/<id>/resources/<resource_id>" \
+  -H "Authorization: Token <token>" | jq '{id, address, type, enabled}'
+# "enabled": false → resource is silently down!
 ```
 
 ---
