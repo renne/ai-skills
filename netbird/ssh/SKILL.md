@@ -108,12 +108,21 @@ The embedded Dex IDP (`management/server/idp/embedded.go`) has hardcoded limitat
 
 Evidence in `idp.db`: `offline_session = 0`, `refresh_token = 0`, abandoned `prompt=none` auth_requests.
 
+### Related GitHub Issues
+
+| Issue | Summary | Status |
+|---|---|---|
+| [netbirdio/dashboard#557](https://github.com/netbirdio/dashboard/issues/557) | Query params (`?id=`, `?user=`) lost after OIDC redirect → SSH hangs at "Starting SSH Session..." | **Fixed** in PR #559, included in dashboard v2.34.2+ |
+| [netbirdio/dashboard#591](https://github.com/netbirdio/dashboard/issues/591) | Full re-auth required every SSH window with embedded IDP — the **re-auth prompt itself** is unfixed | Open |
+
+**Important distinction:** PR #559 (v2.34.2) only fixes the query param loss *after* re-auth. It does **not** eliminate the re-auth prompt itself. Both are separate bugs.
+
 ### Workarounds
 
 | Option | Effect |
 |---|---|
 | `--disable-ssh-auth` on all peers | No credentials dialogue at all (already applied to all Bartschnet Linux hosts) |
-| Replace embedded Dex with Authentik/Keycloak/Zitadel | External OIDC supports `offline_access` + `prompt=none` — one login per browser session |
+| Replace embedded Dex with Authelia/Authentik/Keycloak/Zitadel | External OIDC supports `offline_access` + `prompt=none` — one login per browser session |
 
 ## Systemd Drop-in: Only Environment Variables
 
@@ -126,6 +135,36 @@ Environment="NB_DISABLE_FIREWALL=true"
 ```
 
 Adding `ExecStart` overrides or unknown flags to drop-ins causes crash-loops or silent failures.
+
+## Netbird in a Docker Container Inside a VM (docker1-proxy pattern)
+
+When Netbird runs as a Docker container inside a VM that is only reachable via another host (e.g., cloud-init IP is stale, no SSH keys), use the **QEMU guest agent** to execute commands:
+
+```bash
+# 1. Verify guest agent is running (from Proxmox host pve3)
+qm agent 103 ping
+
+# 2. Apply all three SSH flags inside the container
+qm guest exec 103 -- docker exec netbird-docker-proxy sh -c \
+  'netbird down && netbird up --allow-server-ssh --enable-ssh-root --disable-ssh-auth'
+
+# 3. Read back the config to confirm flags were applied
+qm guest exec 103 -- docker exec netbird-docker-proxy \
+  cat /var/lib/netbird/default.json
+```
+
+Flags persist in `/var/lib/netbird/default.json` inside the container as:
+- `DisableSSHAuth: true`
+- `EnableSSHRoot: true`
+- `ServerSSHAllowed: true`
+
+Don't forget to also enable `ssh_enabled` via the Netbird management API:
+```bash
+curl -X PUT https://netbird.bartschnet.de/api/peers/<peer-id> \
+  -H "Authorization: Token <api-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"ssh_enabled": true}'
+```
 
 ## aspire: Outbound SSH Intercept for Netbird IPs
 

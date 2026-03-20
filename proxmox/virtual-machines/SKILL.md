@@ -234,6 +234,32 @@ systemctl enable --now qemu-guest-agent
 qm set <vmid> --agent 1
 ```
 
+### Running Commands via Guest Agent (when SSH is unavailable)
+
+The guest agent can execute commands in a VM even when SSH is unavailable (stale cloud-init IP, no SSH keys, isolated network):
+
+```bash
+# Verify agent is running
+qm agent <vmid> ping
+
+# Execute a command inside the VM
+qm guest exec <vmid> -- <command>
+
+# Examples
+qm guest exec <vmid> -- ip addr show            # get network interfaces
+qm guest exec <vmid> -- cat /etc/netbird/config  # read a file
+qm guest exec <vmid> -- docker exec mycontainer sh -c 'some-command'
+```
+
+**Use case (docker1-proxy):** If a container's cloud-init IP is stale and direct SSH fails, use `qm guest exec` to reach processes running inside the VM, including nested Docker containers:
+
+```bash
+qm agent 103 ping   # confirm agent alive on VM 103
+qm guest exec 103 -- docker exec netbird-docker-proxy sh -c 'netbird down && netbird up --allow-server-ssh --enable-ssh-root --disable-ssh-auth'
+```
+
+> ⚠️ The Proxmox `qm guest exec` command **does not** stream output in real time. Long-running commands return the exit code and stdout/stderr only after they complete.
+
 ---
 
 ## Templates
