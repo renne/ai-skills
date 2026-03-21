@@ -148,6 +148,10 @@ This system runs a **community-patched BIOS based on the Huananzhi X99-8M-F firm
 - BIOS ROM collection: https://archive.org/download/machinist-e5-mr9a-pro-bios
 - MR9A BIOS GitHub archive: https://github.com/0x8008/mr9a
 
+### Alternative: iEngineer Custom BIOS
+
+An independent custom BIOS by **iEngineer** is available as an alternative to the Huananzhi-patched firmware. Miyconst covers it in the MR9A review video (chapter 04:32). See also: https://www.youtube.com/watch?v=RI5bpvRTA_E (for MR9A PRO MAX variant). Offers similar stability/OC unlocks; use the same flashing procedure and CH341a recovery precaution.
+
 ## Virtualization & IOMMU
 
 - VT-x: Supported (enable in BIOS)
@@ -181,6 +185,10 @@ This system runs a **community-patched BIOS based on the Huananzhi X99-8M-F firm
 | Temperature sensor accuracy | Faulty | Improved |
 | USB 3.0 reliability | Problematic | Improved |
 | Smart fan headers | Limited | Slightly expanded |
+| VRM heatsink | Minimal | Better heatsink, improved cooling |
+| PCB layers | Fewer | 10-layer (better signal integrity) |
+
+> **Note:** Features vary by production batch even within the same "revision". Verify before purchase.
 
 ## Linux Notes
 
@@ -192,12 +200,40 @@ This system runs a **community-patched BIOS based on the Huananzhi X99-8M-F firm
 - No special kernel parameters required beyond VT-d if using virtualization:
   `intel_iommu=on iommu=pt`
 
+## No-POST Troubleshooting
+
+v1.0 has **no POST code display** — rely on speaker beep codes and the following checklist.
+
+### Quick Checklist
+
+1. **RAM slot** — Single DIMM must be in **DDR4_A1** (closest to CPU). Wrong slot = silent no-POST.
+2. **RAM reseating** — Remove, clean contacts, firmly re-insert until both clips lock.
+3. **8-pin CPU power** — Must be fully seated. Missing = no POST.
+4. **Minimal config** — Remove all cards/drives. Boot with only CPU + 1× RAM + CPU power + 24-pin.
+5. **CMOS clear** — Short the JCMOS1 jumper (3-pin near CMOS battery) for 10 s with power off; or remove battery for 5 min.
+6. **GPU slot** — Primary display output is from **PCIe x16 #1 (top slot)**. BIOS will NOT output video from the lower x16 slot. Move GPU to top slot.
+7. **CPU socket pins** — Board was stored? Inspect LGA 2011-3 socket under good light for bent pins.
+8. **Speaker** — Attach a PC speaker to the front-panel header to hear beep codes (v1.0 has no other debug output).
+9. **RAM compatibility** — ECC RDIMMs may or may not POST depending on CPU microcode. Try non-ECC unbuffered if in doubt.
+10. **Breadboard** — Test outside the case to rule out case shorts.
+
+### RAM Slot Population Rules
+
+| Config | Slots to use |
+|---|---|
+| 1 DIMM | A1 |
+| 2 DIMM (dual-channel) | A1 + B1 |
+| 4 DIMM (quad-channel) | A1 + A2 + B1 + B2 |
+
+Populating **any other combination** may result in no POST or reduced stability.
+
 ## Community Resources
 
 | Resource | URL |
 |---|---|
-| Miyconst YouTube — review & BIOS mod walkthrough | https://www.youtube.com/watch?v=kEn30kEkQes |
+| Miyconst YouTube — "MR9A (Pro): my favorite LGA 2011-3 board" (PCIe routing, defects, iEngineer BIOS, i7-5820K OC) | https://www.youtube.com/watch?v=kEn30kEkQes |
 | Miyconst YouTube — overclocking guide | https://www.youtube.com/watch?v=cC93MGua-ow |
+| iEngineer BIOS for MR9A PRO MAX (YouTube, alternative custom BIOS) | https://www.youtube.com/watch?v=RI5bpvRTA_E |
 | Mi899 BIOS utility (GitHub, Miyconst) | https://github.com/miyconst/Mi899 |
 | GitHub — BIOS archives, quirks, ROM dumps | https://github.com/0x8008/mr9a |
 | Archive.org — modded BIOS ROM collection | https://archive.org/download/machinist-e5-mr9a-pro-bios |
