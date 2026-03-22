@@ -135,6 +135,87 @@ Tested with ollama 0.18.0, script: [ollama-benchmark](https://github.com/aidatat
 - May need to explicitly disable ECC for better throughput: `nvidia-smi -e 0`
 - CUDA compute capability: 8.0 (vs V100 = 7.0) — broader model/tool compatibility
 
+## Official Specifications (from product manual)
+
+| Parameter | Value |
+|---|---|
+| **PCB** | FR4 black, 1 oz copper, Rev 1.2 |
+| **Dimensions** | 236 × 170 mm |
+| **Host Interface** | PCIe x16 (4× SFF-8654-8i) |
+| **Upstream ports** | 4× SFF-8654-8i (SlimSAS x8) |
+| **Downstream (GPU0)** | PCIe x16 (slot 1) or x8 (bifurcated) |
+| **Downstream (GPU1)** | PCIe x16 (slot 2) or x8 (bifurcated) |
+| **NVLink** | NVHS — 300 GB/s bidirectional |
+| **Power connectors** | ATX 24-pin + 2× CPU 8-pin + 2× GPU 8-pin |
+| **Fan headers** | 4× SFF-TA-1016 Rev1.3 (DC and PWM) |
+| **Idle power** | ~5 W (board only, no GPUs) |
+
+> Note: The blog post mentions "6× fan headers" but the official manual specifies 4× SFF-TA-1016.
+
+## PCIe Connection Modes (from manual page 2)
+
+Four operating modes selectable based on riser/host PCIe configuration:
+
+| Mode | Bifurcation | Port 1 → GPU | Port 2 → GPU | Notes |
+|---|---|---|---|---|
+| **Internal X16** | x16 | Port 1 → GPU0 @ x8 | Port 2 → GPU1 @ x16 | Single riser, GPU1 gets full x16 |
+| **External X16** | x16 | Port 1 → GPU1 @ x16 | Port 2 → GPU0 @ x8 | Single riser, GPU0 gets full x16 |
+| **Internal X8** | x8/x8 | Port 1 → GPU0 @ x8 | Port 2 → GPU1 @ x8 | Both GPUs x8; use with bifurcated host |
+| **External X8** | x8/x8 | Port 2 → GPU0 @ x8 | Port 1 → GPU1 @ x8 | Both GPUs x8; alternate cable routing |
+
+## Expansion Configurations (from manual page 3)
+
+| Config | Risers | Baseboards | Description |
+|---|---|---|---|
+| **Dual Card x16** | 1× RTE162P54B-2UR | 1 | Single riser → both x8 ports; each GPU gets x16 downstream |
+| **Four Card x8** | 2× RTE162P54B-2UR | 2 (stacked) | Two risers → two stacked baseboards; x8/x8 bifurcation per riser |
+
+### On-Board Switches
+
+| Switch | Setting | Meaning |
+|---|---|---|
+| **Auto_SW** | AT | Host Power Follow — board powers when host PCIe power is present |
+| **Auto_SW** | MT | Manual Power Control — use On_SW to control independently |
+| **On_SW** | ON | GPU board power on |
+| **On_SW** | OFF | GPU board power off |
+
+### LED Indicators
+
+| LED | Label | Meaning |
+|---|---|---|
+| 01 | GPU Insertion | GPU module physically seated |
+| 02 | Self-Check OK | Board self-test passed |
+| 03 | GPU Power On | GPU slot powered |
+| 04 | GPU Overheat | Thermal alert |
+| 05 | Baseboard Power | Main board rail active |
+| 06 | ATX Working | ATX 24-pin rail active |
+| 07 | ATX Standby | ATX 5VSB standby present |
+| 08–11 | (repeat per GPU bank) | Same indicators for second GPU bank |
+
+## Power Wiring Modes (from manual page 4)
+
+### Mode 1 — Independent ATX (Recommended for high-wattage GPUs)
+
+1. Connect ATX 24-pin to the baseboard
+2. Connect any **3 of the 4** 8-pin connectors (CPU/GPU mix)
+3. Board operates independently from host PSU
+
+### Mode 2 — Shared with Motherboard
+
+1. Leave ATX 24-pin **unplugged**
+2. Connect **all 4** 8-pin connectors (CPU + GPU)
+3. Set `Auto_SW` to **AT** (Host Power Follow)
+4. Board shares host PSU; suitable for lower-wattage configurations only
+
+### PSU Sizing Recommendations
+
+| GPU Config | Minimum PSU | Recommended PSU |
+|---|---|---|
+| 2× V100 SXM2 16 GB or 32 GB | ATX3.1 850 W | Great Wall E8 850 W Gold |
+| 2× PG199 (DRIVE A100) | ATX3.1 1200 W | Great Wall N12 1200 W Platinum |
+
+> Great Wall (长城) E8/N12 series explicitly listed in TNS manual as reference PSUs.
+
 ## Known Gotchas
 - SXM2 modules idle at ~42 W each (no meaningful power saving in manual mode)
 - Some AI models/tools require Turing (RTX 20xx) or Ampere (RTX 30xx) — not compatible with V100

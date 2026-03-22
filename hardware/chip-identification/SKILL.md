@@ -19,7 +19,7 @@ A log of chips identified from macro PCB photos, including part numbers, manufac
 | **Date Code** | 2403538 |
 | **Origin** | TWN (Taiwan), year 2024 (date code 2403538) |
 | **PCB** | RBE162548_V52 — RTE162P54B-2UR SFF-8654-8i riser for SXM2 baseboard |
-| **Photo** | `photos/PXL_20260322_133229089.MACRO_FOCUS.jpg` |
+| **Photo** | `../rte162p54b-2ur/photos/PXL_20260322_133229089.MACRO_FOCUS.jpg` |
 
 ### Notes
 - Used on SFF-8654-8i riser cards to generate reference clocks for PCIe 4.0 / SerDes interfaces.
