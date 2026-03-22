@@ -4,6 +4,8 @@ description: Hardware and firmware reference for the Fujitsu D3417-B2 desktop/wo
 ---
 # Fujitsu D3417-B2 — Hardware Reference
 
+> **Note:** Fujitsu-Siemens mainboard production was taken over by **Kontron**. Boards originally sold under the Fujitsu brand (including the D3417-B2) are now continued and supported by Kontron. Firmware updates, documentation, and compatibility matrices may be found at [kontron.com](https://www.kontron.com) in addition to (or instead of) legacy Fujitsu support channels.
+
 ## Overview
 
 The **Fujitsu D3417-B2** is a micro-ATX desktop/workstation mainboard based on the Intel Kaby Lake platform (7th gen Core), used in Fujitsu ESPRIMO and similar systems.
