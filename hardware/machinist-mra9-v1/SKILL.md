@@ -110,6 +110,26 @@ Confirmed hardware as of live system inspection (Ubuntu 24.04.4 LTS live via Ven
 - **No PCIe bifurcation** in stock BIOS — quad-NVMe adapters require a modded BIOS
 - Bifurcation (x8+x8 or x4+x4+x4+x4) may be possible with the patched Huananzhi BIOS but is untested/unsupported
 
+### PCIe Slot → Root Port Mapping (confirmed on `mra9`)
+
+| Root Port | PCI addr | Sysfs slot | `SltCap` | Device |
+|---|---|---|---|---|
+| CPU IIO | `00:01.0` | slot 2 | `HotPlug- PwrCtrl-` | empty |
+| CPU IIO | `00:01.1` | slot 0 | `HotPlug- PwrCtrl-` | NVMe SSD (`02:00.0`) |
+| CPU IIO | `00:02.0` | slot 6 | `HotPlug- PwrCtrl-` | GPU0 V100 (`03:00.0`) |
+| CPU IIO | `00:03.0` | slot 4 | `HotPlug- PwrCtrl-` | GPU1 V100 (`04:00.0`) |
+| PCH | `00:1c.x` | (ACPI-listed) | hardware varies | GT 710 (`08:00.0`), etc. |
+
+### PCIe Slot Power Control — Not Possible on CPU-Direct Lanes
+
+Intel Haswell-EP CPU PCIe root ports have **no slot power controller hardware**. `SltCap` is a **read-only silicon register** the BIOS cannot modify.
+
+- `/sys/bus/pci/slots/<n>/power` does **not exist** for any CPU-attached slot — software slot power cycling is impossible
+- The BIOS **"PCIe Hotplug"** setting has **no effect** on CPU-direct lanes: the `pciehp` kernel driver reads `SltCap`, sees `HotPlug-`, and exits without registering any slot management
+- No ACPI `_PR3` power resources are configured for CPU root ports (absent from `/proc/acpi/wakeup`) — `D3cold` cannot be triggered
+- The BIOS hotplug setting *may* affect PCH-attached slots (`00:1c.x`) which do appear in the ACPI wakeup table
+- **Consequence for V100s:** The GPUs remain powered as long as the MRA9 system is powered on. The only way to power-cycle a GPU slot is a full system power cycle.
+
 ## Rear I/O
 
 | Connector | Quantity |
@@ -257,6 +277,7 @@ An independent custom BIOS by **iEngineer** is available as an alternative to th
 | Fan speed reporting broken | Low | Workaround: external PWM controller |
 | S3/S4 sleep unreliable on stock BIOS | Medium | Patched Huananzhi BIOS resolves in most cases |
 | **Xid 74 NVLink fatal error + full system freeze** | **Critical** | Triggered by SIGKILL to V100 CUDA processes mid-NVLink DMA. Recovery: hard power cycle only. See V100 section above. |
+| **BIOS PCIe Hotplug setting = no-op for CPU lanes** | Low | `SltCap: HotPlug- PwrCtrl-` is hardwired in CPU IIO silicon; BIOS cannot change it. The BIOS hotplug option only affects PCH-attached slots. No ACPI power resources exist for CPU root ports. Cannot software-power-cycle GPU slots under any circumstances. |
 
 ## v1.0 vs v2.0 / PRO Differences
 

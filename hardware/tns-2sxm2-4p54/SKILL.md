@@ -193,6 +193,8 @@ Four operating modes selectable based on riser/host PCIe configuration:
 | **On_SW** | ON | GPU board power on |
 | **On_SW** | OFF | GPU board power off |
 
+> **`Auto_SW=AT` on consumer/budget platforms (e.g., MRA9):** AT (Host Power Follow) monitors the host PCIe slot 12V/3.3V rails. On platforms with CPU-direct PCIe root ports (`SltCap: HotPlug- PwrCtrl-`, e.g., Intel Haswell-EP IIO lanes), these rails are **always-on** while the system is running — there is no hardware slot power controller to cut them. On such platforms, AT mode behaves identically to MT+On_SW=ON: the board is always powered when the host is up. **AT mode is only meaningful on server/workstation platforms where the host PCIe slots have real power-switching hardware** (e.g., Intel PCH hotplug-capable slots). Use `Auto_SW=MT` + `On_SW` for manual independent power control on consumer boards.
+
 ### LED Indicators
 
 | LED | Label | Meaning |

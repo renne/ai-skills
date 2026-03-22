@@ -66,6 +66,23 @@ Spread DIMMs across channels before doubling up in any channel.
 - 4× PCIe 4.0 x16 slots
 - 3× M.2 2280 NVMe (PCIe 4.0 x4 each)
 
+### PCIe Slot Power Control — EPYC 7282 (Rome) vs Intel Haswell-EP
+
+Unlike Intel Haswell-EP (e.g., MRA9) where CPU IIO root ports have `SltCap: HotPlug- PwrCtrl-` **permanently hardwired in silicon**, AMD EPYC 7282 (Rome) root ports are **firmware-configurable** — the CPU itself is capable of advertising `HotPlug+/PwrCtrl+`.
+
+However, the full chain must be implemented:
+1. **Board must wire PCIe power-switch lines** (SMBus/GPIO-attached power controllers per slot)
+2. **ACPI firmware must expose `_PR3`/`_PS3` methods** for each root port
+3. **BIOS must set `HotPlug+/PwrCtrl+`** bits in the root port config registers
+
+The Huananzhi H12D-8D is a budget server board — it is **unlikely** to have slot power-switch hardware wired up. Verify with:
+```bash
+lspci -vvv | grep -A3 "Root Port" | grep SltCap
+```
+If you see `PwrCtrl-`, software-controlled PCIe slot power cycling is not possible regardless of EPYC's CPU-level capability. Check `/sys/bus/pci/slots/*/power` — the file will only exist if `PwrCtrl+` is set.
+
+> **Contrast with MRA9:** On MRA9 (Haswell-EP), `PwrCtrl-` is a read-only silicon register the BIOS can never change. On H12D-8D (EPYC Rome), if Huananzhi had wired the hardware, `PwrCtrl+` could work — but this has not been confirmed.
+
 ### Onboard SATA
 - 4× SATA3 (6 Gbps) ports directly on the board
 
