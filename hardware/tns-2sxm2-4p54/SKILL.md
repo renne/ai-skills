@@ -1,6 +1,6 @@
 ---
 name: tns-2sxm2-4p54
-description: TNS-2SXM2-4P54 dual-SXM2 GPU carrier baseboard. Hosts 2× NVIDIA V100 SXM2 GPUs and connects to a host via 4× SFF-8654-8i (SlimSAS x8) PCIe 4.0 ports through 2× RTE162P54B-2UR risers. Use this skill when working with this baseboard, SXM2 GPU installation, NVLink, or V100 homelab setups.
+description: TNS-2SXM2-4P54 dual-SXM2 GPU carrier baseboard. Hosts 2× NVIDIA SXM2 GPUs (V100 SXM2 confirmed; DRIVE A100/PG199 SXM2 physically compatible) and connects to a host via 4× SFF-8654-8i (SlimSAS x8) PCIe 4.0 ports through 2× RTE162P54B-2UR risers. Use this skill when working with this baseboard, SXM2 GPU installation, NVLink, V100/A100 homelab setups.
 ---
 # TNS-2SXM2-4P54 — Dual-SXM2 GPU Carrier Baseboard
 
@@ -18,9 +18,9 @@ description: TNS-2SXM2-4P54 dual-SXM2 GPU carrier baseboard. Hosts 2× NVIDIA V1
 | **Host platform** | Intel Xeon server (confirmed via `IntelRCSetup` tab in AMI Aptio BIOS v2.18.1263) |
 | **GPUs installed** | 2× NVIDIA V100 SXM2 (confirmed by photo `PXL_20260314_180902214.jpg`) |
 | **Coolers** | 2× SXM2 heatsink — aluminum fin stack with copper heat pipes |
-| **Photos (board)** | `PXL_20260314_104840199.jpg` (front/component side), `PXL_20260314_104823252.jpg` (back/solder side) |
-| **Photos (assembled)** | `PXL_20260314_180902214.jpg` (2× V100 + 2× heatsink installed, in shipping box) |
-| **Photos (BIOS)** | `PXL_20260322_114203660.MP.jpg` (PCI resource error), `PXL_20260322_125720017.jpg` (CSM config) |
+| **Photos (board)** | `photos/PXL_20260314_104840199.jpg` (front/component side), `photos/PXL_20260314_104823252.jpg` (back/solder side) |
+| **Photos (assembled)** | `photos/PXL_20260314_180902214.jpg` (2× V100 + 2× heatsink installed, in shipping box) |
+| **Photos (BIOS)** | `photos/PXL_20260322_114203660.MP.jpg` (PCI resource error), `photos/PXL_20260322_125720017.jpg` (CSM config) |
 
 ## Physical Description
 - Large black PCB, SXM2 sockets arranged vertically (top + bottom), power headers along top edge
@@ -51,8 +51,26 @@ description: TNS-2SXM2-4P54 dual-SXM2 GPU carrier baseboard. Hosts 2× NVIDIA V1
 - Blog reference: [angrysysadmins.tech — Cheap-ish AI Homelab: V100s, Custom Boards, and NVLink](https://angrysysadmins.tech/index.php/2026/03/grassyloki/cheap-ish-ai-homelab-on-a-budget-v100s-custom-boards-and-nvlink/)
 
 ## Compatible GPUs
-- **NVIDIA Tesla V100 SXM2** — 16 GB or 32 GB HBM2
-- SXM3, SXM4, SXM6 are **not compatible** (different socket/connector)
+
+| GPU | Compatibility | Notes |
+|---|---|---|
+| **NVIDIA Tesla V100 SXM2** | ✅ Confirmed | 16 GB or 32 GB HBM2; photos show confirmed installation |
+| **NVIDIA DRIVE A100 (PG199) SXM2** | ⚠️ Likely compatible | SXM2 socket is physically identical; electrically confirmed on generic SXM2 boards; **not specifically tested on TNS-2SXM2-4P54** |
+| **NVIDIA P100 SXM2** | ⚠️ Probably compatible | Same SXM2 socket; untested on this board |
+| SXM3, SXM4, SXM6 | ❌ Not compatible | Different socket/connector |
+
+### PG199 (NVIDIA DRIVE A100) — Compatibility Notes
+- **PG199** = NVIDIA DRIVE A100 Automotive, Ampere GA100 die, SXM2 physical socket, **32 GB HBM2e**, ~400 W TDP
+- Part number: `900-6G199-0000-C00`
+- **NOT** the datacenter A100 SXM4 (PG506) — that uses a different socket and is not compatible
+- SXM2 pinout is largely identical between V100 and PG199 for PCIe signal/power; confirmed working in generic SXM2 adapters and non-OEM boards
+- Some SXM2 adapter projects (OSHWHub, GitHub) explicitly list P100/V100/PG199 "电气兼容" (electrically compatible)
+- Community reports (ServeTheHome) show PG199 working in third-party SXM2 carrier boards; **no specific confirmation for TNS-2SXM2-4P54 found**
+- **Power**: PG199 draws up to ~400 W; verify TNS-2SXM2-4P54 power headers can deliver this (vs V100 ~300 W)
+- **Cooling**: PG199 has no integrated heatsink — requires custom water block or third-party air cooler; standard SXM4 heatsinks do not fit
+- **NVLink**: Status on TNS-2SXM2-4P54 with PG199 is unknown; NVLink is often absent/non-functional on PG199 outside DGX systems
+- **Drivers**: Use closed-source `nvidia` driver — `nvidia-open` does **not** support GA100/PG199. Linux strongly preferred (Windows support unreliable)
+- Sources: [ServeTheHome DRIVE A100 thread](https://forums.servethehome.com/index.php?threads/automotive-a100-sxm2-for-fsd-nvidia-drive-a100.43196/), [l4rz SXM guide](https://l4rz.net/running-nvidia-sxm-gpus-in-consumer-pcs/), [Léo's automotive GPU blog](https://leikoe.github.io/posts/automotive-gpu-maxxxing), [LiuXinyu12378/SXM2_to_PCIE_adapter](https://github.com/LiuXinyu12378/SXM2_to_PCIE_adapter)
 
 ## V100 SXM2 Heatsink Assembly Procedure
 Labels printed on each heatsink lid (both heatsinks identical):
@@ -102,11 +120,20 @@ Tested with ollama 0.18.0, script: [ollama-benchmark](https://github.com/aidatat
 | gpt-oss:20b | 119.43 |
 | llama3.2:3b | 207.62 |
 
-## OS & Driver Configuration (CachyOS / Arch)
+## OS & Driver Configuration
+
+### V100 SXM2 (Volta/GV100)
 - Driver: `nvidia-580xx-dkms` (last CUDA 12-supporting branch for V100)
 - Do **not** use `nvidia-open` — not compatible with V100 (Volta/GV100)
 - Recommended kernel parameters: `initcall_blacklist=simpledrm_platform_driver_init nvidia-drm.fbdev=0`
 - Add to `/etc/modprobe.d/nvidia.conf`: `options nvidia NVreg_DynamicPowerManagement=0x02`
+
+### PG199 DRIVE A100 (Ampere/GA100)
+- Driver: use closed-source `nvidia` driver (e.g. `nvidia-dkms`) — `nvidia-open` **incompatible** with GA100/PG199
+- Linux strongly preferred; Windows support for PG199 is unreliable
+- Same kernel parameters as V100 apply
+- May need to explicitly disable ECC for better throughput: `nvidia-smi -e 0`
+- CUDA compute capability: 8.0 (vs V100 = 7.0) — broader model/tool compatibility
 
 ## Known Gotchas
 - SXM2 modules idle at ~42 W each (no meaningful power saving in manual mode)
