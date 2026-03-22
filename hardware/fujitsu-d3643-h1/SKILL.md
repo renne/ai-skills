@@ -8,6 +8,8 @@ description: Hardware reference for the Fujitsu CELSIUS W550 / Mainboard D3643-H
 
 Host using this hardware: **pve3** (Proxmox VE hypervisor, Weißdornweg)
 
+> **Note:** Fujitsu-Siemens mainboard production was taken over by **Kontron**. Post-acquisition boards (and BIOS/support downloads) are branded and distributed under the Kontron name. If Fujitsu support channels no longer list firmware updates, check [https://www.kontron.com](https://www.kontron.com) and the [Kontron FTP](https://ftp.kontron.com).
+
 ## Board / System
 
 | Parameter | Value |
