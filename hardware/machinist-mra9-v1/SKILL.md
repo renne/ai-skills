@@ -1,25 +1,43 @@
 ---
 name: machinist-mra9-v1
-description: Hardware reference for the Machinist X99 MRA9 / E5-MR9A hardware revision v1.0 — an ATX LGA 2011-3 budget motherboard supporting Xeon E5 v3/v4 CPUs with DDR4 quad-channel memory. Use when managing, troubleshooting, or configuring any system running on this board: covers specs, CPU/RAM compatibility, BIOS quirks, storage, PCIe layout, fan control, virtualization (IOMMU/VT-d), and known v1.0-specific issues.
+description: Hardware reference for the Machinist X99 MRA9 / E5-MR9A hardware revision v1.0 — an ATX LGA 2011-3 budget motherboard supporting Xeon E5 v3/v4 CPUs with DDR4 quad-channel memory. The `mra9` machine runs with the Huananzhi X99-8M-F BIOS cross-flashed (so DMI reports HUANANZHI branding). Use when managing, troubleshooting, or configuring any system running on this board: covers specs, CPU/RAM compatibility (including RDIMM), BIOS quirks, storage, PCIe layout, fan control, virtualization (IOMMU/VT-d), and known v1.0-specific issues.
 ---
 # Machinist X99 MRA9 / E5-MR9A — Hardware Revision v1.0
 
 Also marketed as: **X99-MR9A**, **E5-MR9A**, **Machinist MRA9**  
 Revision v1.0 is the original production run — no debug display, no onboard power/reset buttons, no TPM 2.0 header, no integrated I/O shield.
 
+> **Branding note:** The machine named `mra9` has DMI reporting `Manufacturer: HUANANZHI`, `Product Name: X99-8M-F V1.1`. This is because the **Huananzhi X99-8M-F BIOS has been cross-flashed** onto the Machinist board — the BIOS ROM contains HUANANZHI DMI strings which overwrite the original Machinist entries. The physical board is a Machinist MRA9 v1.0.
+
 ## Board Overview
 
 | Parameter | Value |
 |---|---|
 | Manufacturer | Machinist (Chinese budget OEM) |
-| Model | MRA9 / MR9A (hardware rev v1.0) |
+| Model | MRA9 / MR9A (hardware rev v1.0) — DMI may report HUANANZHI X99-8M-F V1.1 after BIOS cross-flash |
 | Form Factor | ATX (~216–280 × 215–283 mm) |
 | Socket | LGA 2011-3 |
-| Chipset | Intel B85 (most units); Q87 or C226 on some variants |
+| Chipset | Intel **Q87 Express** (confirmed on `mra9`; B85 or C226 on other production batches) |
 | BIOS Chip | Winbond 25Q128FV |
 | BIOS Type | Legacy + UEFI (AMI) |
+| BIOS Version | AMI 5.11 (Huananzhi-patched), released 10/15/2020 |
 
 > **Note:** Despite "X99" marketing, this board uses a **desktop chipset (B85/Q87/C226)**, NOT Intel X99 or C612. This limits ECC, PCIe bifurcation, VROC, IPMI, and overclocking.
+
+## Installed Configuration (`mra9`)
+
+Confirmed hardware as of live system inspection (Ubuntu 24.04.3 LTS live via Ventoy):
+
+| Component | Details |
+|---|---|
+| CPU | Intel Xeon E5-2620 v3 @ 2.40 GHz (6C/12T, max turbo 3.2 GHz) |
+| RAM | 1× 8 GB DDR4 (Corsair CMK8GX4M1A2400C16) in slot **DIMM_B1**, running at **1866 MT/s** (JEDEC default; XMP not supported) |
+| GPU | NVIDIA GeForce GT 710 (GK208B rev a1) — PCIe slot `05:00.0` |
+| NIC | Realtek RTL8111/8168/8211/8411 GbE (`enp6s0`, PCIe `06:00.0`) |
+| Internal storage | **None installed** — system currently boots via Ventoy USB (SanDisk 57.3 GB, `/dev/sda`) |
+| OS | Ubuntu 24.04.3 LTS (live environment from Ventoy) |
+
+> **RAM slot note:** On `mra9` (Machinist board with Huananzhi BIOS cross-flashed), SMBIOS reports the populated single-DIMM slot as **DIMM_B1** (Node 1). The physical silkscreen on the Machinist board labels this slot **DIMM1**. The Huananzhi BIOS relabels it B1 in its SMBIOS tables. Single-DIMM in the physical DIMM1 slot works correctly.
 
 ## CPU Support
 
@@ -28,10 +46,22 @@ Revision v1.0 is the original production run — no debug display, no onboard po
 | Architecture | LGA 2011-3 (Haswell-EP / Broadwell-EP) |
 | Supported CPUs | Intel Xeon E5-26xx v3, E5-26xx v4; Core i7-58x0X / i7-68x0X |
 | Recommended CPUs | E5-2620 v3/v4, E5-2650 v3/v4, E5-2680 v3/v4, E5-2699 v3/v4 |
+| Installed (`mra9`) | **Intel Xeon E5-2620 v3** — 6C/12T (HT), 2.40 GHz base, 3.20 GHz turbo, 85 W TDP, 15 MiB L3 |
 | TDP headroom | 4-phase VRM (8 virtual via doublers); active VRM cooling recommended for >120 W CPUs |
 | Overclocking | None — desktop chipset does not support multiplier adjustment |
 | Turbo unlock | Available via patched Huananzhi BIOS (see BIOS section) |
 | Temperature sensor | **Unreliable on v1.0** — commonly reads 120 °C or random values; do not trust |
+
+### Security Vulnerabilities (E5-2620 v3)
+
+| Vulnerability | Status |
+|---|---|
+| Meltdown | Mitigated (PTI) |
+| Spectre v1/v2 | Mitigated |
+| MDS (Microarchitectural Data Sampling) | **Vulnerable — no microcode fix available for this stepping** |
+| MMIO Stale Data | **Vulnerable — no microcode fix available** |
+
+> No remediation exists at OS level for MDS on this CPU. Do not run untrusted workloads in shared VMs without physical isolation.
 
 ### VRM Details (v1.0)
 - MOSFETs: SM4503NHKP (high-side) + SM4508NHKP (low-side)
@@ -45,12 +75,17 @@ Revision v1.0 is the original production run — no debug display, no onboard po
 | Slots | 4× DDR4 DIMM |
 | Channels | Quad-channel (populate all 4 for quad-channel) |
 | Capacity | Up to 128 GB total |
-| Speed | DDR4-2133 / 2400 (JEDEC) |
+| Speed | DDR4-2133 / 2400 (JEDEC); actual running speed may be **1866 MT/s** (see note) |
 | ECC support | ECC modules POST and boot; **ECC error correction is NOT functionally enabled** (desktop chipset limitation) |
 | Non-ECC | Supported |
-| RDIMM/LRDIMM | Registered DIMMs work; LRDIMM compatibility varies |
+| RDIMM | **Yes** — the E5-2620 v3's integrated memory controller (IMC) natively supports RDIMM. The Q87 PCH is irrelevant to memory type on LGA 2011-3; all memory signaling goes through the CPU IMC, not the chipset. Community-validated on this board. |
+| LRDIMM | Compatibility varies by module; some work, some fail to POST. |
 
-> **ECC Caveat:** Linux `dmesg` / `edac-util` will report no ECC support. This is expected — the hardware accepts ECC DIMMs electrically but the chipset/BIOS does not enable error correction logic.
+> **RDIMM & Chipset clarification:** On LGA 2011-3, the Q87 PCH does **not** control memory. The Intel E5 v3 CPU has a fully integrated DDR4 memory controller supporting UDIMM, RDIMM, and LRDIMM. The Q87 in this system handles chipset I/O (SATA, USB, PCIe from PCH lanes) — memory type support depends solely on the CPU IMC and the board's slot wiring, both of which accept registered DIMMs.
+
+> **ECC Caveat:** Linux `dmesg` / `edac-util` will report no ECC support. This is expected — the hardware accepts ECC/RDIMM modules electrically but the Q87 desktop PCH does not enable error correction logic.
+
+> **Speed note:** On the `mra9` machine, a DDR4-2400 module (Corsair CMK8GX4M1A2400C16) runs at **1866 MT/s** — the board enforces JEDEC sub-profiles and does not support XMP. This is normal and expected.
 
 ## Storage
 
@@ -117,6 +152,7 @@ Revision v1.0 is the original production run — no debug display, no onboard po
 - Vendor: AMI UEFI (minimal feature set)
 - Both Legacy (CSM) and UEFI boot modes supported
 - **This system uses the patched Huananzhi X99-8M-F BIOS** — strongly recommended over stock for stability
+- **Confirmed on `mra9`:** AMI version **5.11**, release date **10/15/2020**
 
 ### Key BIOS Settings
 
@@ -208,7 +244,7 @@ v1.0 has **no POST code display** — rely on speaker beep codes and the followi
 ### Quick Checklist
 
 1. **CPU fan (4-pin)** — **A 4-pin CPU fan must be connected to the CPU_FAN1 header.** The board will NOT start the BIOS, initialize the CPU, or boot without it — this is a hard firmware requirement, not just a warning.
-2. **RAM slot** — Single DIMM must be in **DDR4_A1** (closest to CPU). Wrong slot = silent no-POST.
+2. **RAM slot** — Single DIMM must be in **DIMM1** (closest to CPU). Wrong slot = silent no-POST.
 3. **RAM reseating** — Remove, clean contacts, firmly re-insert until both clips lock.
 4. **8-pin CPU power** — Must be fully seated. Missing = no POST.
 5. **Minimal config** — Remove all cards/drives. Boot with only CPU + 1× RAM + CPU power + 24-pin + CPU fan.
@@ -223,15 +259,17 @@ v1.0 has **no POST code display** — rely on speaker beep codes and the followi
 
 | Config | Slots to use |
 |---|---|
-| 1 DIMM | A1 |
-| 2 DIMM (dual-channel) | A1 + B1 |
-| 4 DIMM (quad-channel) | A1 + A2 + B1 + B2 |
+| 1 DIMM | **DIMM1** (Machinist silkscreen) / SMBIOS reports as `DIMM_B1` when Huananzhi BIOS is flashed |
+| 2 DIMM (dual-channel) | DIMM1 + DIMM2 |
+| 4 DIMM (quad-channel) | DIMM1 + DIMM2 + DIMM3 + DIMM4 |
 
 Populating **any other combination** may result in no POST or reduced stability.
 
 **Physical slot order (left to right, starting closest to CPU socket):**  
-`DDR4_A1` → `DDR4_A2` → `DDR4_B1` → `DDR4_B2`  
-Slot labels are silk-screened on the PCB. **A1 is always the slot nearest the LGA 2011-3 socket.**
+`DIMM1` → `DIMM2` → `DIMM3` → `DIMM4`  
+Slot labels are silk-screened on the PCB. **DIMM1 is always the slot nearest the LGA 2011-3 socket.**
+
+> **Huananzhi BIOS cross-flash note:** When the Huananzhi X99-8M-F BIOS is flashed, SMBIOS reports the slots as `DIMM_A1/A2/B1/B2` — `DIMM1` maps to `DIMM_B1`. If no-POST occurs with single DIMM in DIMM1, verify it is seated correctly; no need to move to another slot.
 
 ## Community Resources
 
