@@ -152,8 +152,8 @@ Confirmed hardware as of live system inspection (Ubuntu 24.04.4 LTS live via Ven
 
 - Vendor: AMI UEFI (minimal feature set)
 - Both Legacy (CSM) and UEFI boot modes supported
-- **This system uses the patched Huananzhi X99-8M-F BIOS** — strongly recommended over stock for stability
-- **Confirmed on `mra9`:** AMI version **5.11**, release date **10/15/2020**
+- **Live ROM identity:** Version `X99MA011`, date `2020-10-15` (original Machinist AMI BIOS — no Miyconst/Huananzhi markers in firmware code; DMI strings `HUANANZHI X99-8M-F V1.1` come from NVRAM variables, not firmware)
+- The HUANANZHI DMI strings are stored in NVRAM (not the flash code). The `bios-roms/LIVE-*.rom` is the actual live firmware dump. See [BIOS ROM Files](#bios-rom-files-0x8008mr9a-github-archive) for all variants.
 
 ### Key BIOS Settings
 
@@ -161,19 +161,21 @@ Confirmed hardware as of live system inspection (Ubuntu 24.04.4 LTS live via Ven
 |---|---|---|
 | Load Optimized Defaults | F6 key on main BIOS screen | **Required** after any BIOS flash |
 | CPU C-State → C6 | Chipset → Processor Configuration → CPU C State Control / Package C State limit | **Disable C6** — causes random instability / boot failures on this board |
-| Above 4G Decoding | Advanced → PCI Subsystem Settings → PCI Express Settings | **Enable** when using GPUs with large BARs (Tesla V100, RX 5700+, RTX series) |
+| Above 4G Decoding | Advanced → PCI Subsystem Settings → Above 4G Decoding | **Enable** when using GPUs with large BARs (Tesla V100, RX 5700+, RTX series) |
 | CSM Support | Advanced → CSM Configuration → CSM Support | **Disable** for UEFI-only GPU / clean UEFI boot; requires UEFI GOP VBIOS on all GPUs |
 | Video Option ROM | Advanced → CSM Configuration → Option ROM Execution → Video | **UEFI** (with CSM off or UEFI GOP GPU); **Legacy** only if GPU has no UEFI GOP |
-| Intel VT-d (IOMMU) | Chipset → PCI Express Configuration → Intel VT for Directed I/O (VT-d) | **Enable** for GPU passthrough / IOMMU |
+| Intel VT-d (IOMMU) | Chipset → IIO Configuration → Intel VT for Directed I/O (VT-d) | **Enable** for GPU passthrough / IOMMU |
 | Hyper-Threading | Chipset → Processor Configuration → Hyper-Threading [ALL] | Enable (default) for workloads; disable for latency-sensitive single-threaded use |
 | Turbo Mode | Chipset → Processor Configuration → Turbo Mode | **Enable** (default); required for TBU to have effect |
 | SR-IOV Support | Advanced → PCI Subsystem Settings → PCI Express Settings → SR-IOV Support | Enable if using NIC SR-IOV or GPU virtual functions |
 | Secure Boot | Security → Secure Boot | Disable for Linux/Proxmox (unsigned kernels) |
 | Memory XMP/OC | N/A | **Not supported**; runs at JEDEC defaults only |
 
-### Patched Huananzhi BIOS
+### Patched Huananzhi BIOS (community-recommended alternative)
 
-This system runs a **community-patched BIOS based on the Huananzhi X99-8M-F firmware**. This is the recommended approach for MRA9 v1.0 boards due to superior stability and feature support compared to stock.
+The live SPI dump from this machine (`LIVE-machinist-x99-mr9a-20201015-X99MA011.rom`) is the **original Machinist AMI BIOS** (version X99MA011, 2020-10-15) — not a Huananzhi cross-flash. The `HUANANZHI X99-8M-F V1.1` string visible in DMI/lshw comes from NVRAM variables, not the firmware code.
+
+However, the community-patched Huananzhi X99-8M-F firmware from the [0x8008/mr9a](https://github.com/0x8008/mr9a) archive is the **recommended upgrade** for MRA9 v1.0 boards due to superior stability and feature support compared to stock.
 
 The default stock BIOS lacks sleep state support, memory timing control, Turbo Boost, and overclocking. Flashing the Huananzhi X99-8M-F firmware resolves all of these. The board is sold as both "X99-MR9A" and "E5-MR9A" — they are (nearly) identical; all BIOS files work on both.
 
@@ -198,6 +200,7 @@ ROM files are stored locally in `bios-roms/` (this skill directory).
 | `TBU-machinist-x99-mr9a-20240227-102043.rom` | **Recommended** — Huananzhi X99-8M-F + Turbo Boost Unlock + undervolting (−50 mV) via Mi899 | `9893df2d90b57e163881272a7730685d` | [download](https://raw.githubusercontent.com/0x8008/mr9a/main/TBU-machinist-x99-mr9a-20240227-102043.rom) |
 | `REBAR-machinist-x99-mr9a-20240227-102043.rom` | TBU + undervolting + **Resizable BAR** (ReBarUEFI) | `022050ad32de1a00b448dd50fab6b210` | [download](https://raw.githubusercontent.com/0x8008/mr9a/main/REBAR-machinist-x99-mr9a-20240227-102043.rom) |
 | `LOGO-machinist-x99-mr9a-20240227-102043.rom` | Same as REBAR + custom boot logo (no "Huananzhi" splash) | `8dd01baf00de2a0c7c265de67893c50e` | [download](https://raw.githubusercontent.com/0x8008/mr9a/main/LOGO-machinist-x99-mr9a-20240227-102043.rom) |
+| `LIVE-machinist-x99-mr9a-20201015-X99MA011.rom` | **Live SPI dump from this machine** — version `X99MA011`, date `2020-10-15`; no Miyconst markers — original Machinist AMI BIOS, distinct from all four archived variants above | MD5: `b8adb1746988b3c0849ebad7926982e2` SHA1: `aa415e4746a5575b34949fad2eac3120f52ae8e1` | (local only — dumped via `flashrom -p internal`) |
 
 All files are 16,777,216 bytes (16 MiB — matches the Winbond 25Q128FV SPI flash chip).
 
@@ -425,99 +428,97 @@ Since the OS brings up display normally, you can operate with Above 4G Decoding 
 3. Run `ssh mra9` — if it connects, the system is fully functional
 4. Install V100s, verify no "PCI Out of Resources" errors: `dmesg | grep -i 'pci\|bar\|resource'`
 
-### BIOS Menu Reference (Huananzhi X99-8M-F, Machinist MRA9 v1.0)
+### BIOS Menu Reference (Live ROM — X99MA011, 2020-10-15)
 
-Full menu tree extracted from BIOS ROM firmware strings (TBU-machinist-x99-mr9a-20240227-102043.rom).
+Full menu tree extracted via IFR opcode parsing from the live SPI dump (`LIVE-machinist-x99-mr9a-20201015-X99MA011.rom`).
+Extraction method: Setup DXE FFS (GUID `899407D7-99FE-43D8-9A21-79EC328CAC21`) → LZMA decompression → IFR opcode stream + HII string package (989 strings).
+
 Top-level tabs: **Main → Advanced → Chipset → Boot → Security → Save & Exit**
+
+> **Chipset form note:** The Chipset tab (`IntelRCSetup`, Form 0x2713) is **intentionally empty in the Setup DXE module** — this is standard AMI behavior. The Chipset DXE module registers its menus into the HII database at runtime, so they only appear on the live system. The Chipset submenu structure (Processor Configuration, IIO Configuration, Memory Map, etc.) was confirmed by extracting UCS-2 strings from the Chipset DXE module at ROM offset `0x009070E8`.
 
 #### Main
 
-- System Language
 - BIOS Information (Vendor, Core Version, Compliancy, Board Name, BIOS Version, Build Date/Time)
-- System Date
-- System Time
-- Access Level
+- Memory Information
+- System Language
 
 #### Advanced
 
-- **NCT5532D SSIO Configuration** — Super I/O (Serial/parallel ports, CIR)
-- **Hardware Monitor (PC Health Status)** — CPU temps, fan RPM, voltages; Smart Fan Function for CPU_FAN1
-- **ACPI Settings** — Sleep State (S1 / S3), Hibernation, Lock Legacy Resources, S3 Video Repost
-- **PCI Subsystem Settings**
-  - PCI Express Settings
-    - **Above 4G Decoding** — Enable to map 64-bit BARs above 4 GB (required for Tesla V100, RTX, RX 5700+)
-    - SR-IOV Support
-    - BME DMA Mitigation
-    - ASPM Support
-    - PCI Latency Timer / PCI-X Latency Timer / Extended Synch / Extended Tag
-  - PCI Hot-Plug Settings
-  - PCI Bus Driver Version
-- **Serial Port Console Redirection** — UART-based console for headless management
-- **Network Stack Configuration** — IPv4/IPv6 PXE boot; IPsec certificate
-- **CSM Configuration**
-  - CSM Support — Enable / Disable (Disable for UEFI-only mode; requires UEFI GOP on all GPUs)
-  - Boot Option Filter — UEFI and Legacy / Legacy only / UEFI only
+- **Trusted Computing** — TPM device support (Security Device Support, TPM State, Pending operation; TPM 1.2/2.0/TCM selectable)
+- **ACPI Settings** — Enable ACPI Auto Configuration, Enable Hibernation, ACPI Sleep State (S1/S3), Lock Legacy Resources
+- **NCT5532D SSIO Configuration** — AC Power Loss setting; Serial Port 1 Configuration (enable/disable, I/O address)
+- **Hardware Monitor (PC Health Status)** — CPU temps, fan RPM, voltages (display only)
+- **Smart Fan Function** — Smart Fan 1 & 2: mode (Manual PWM / Smart), temperature thresholds (4 points), PWM levels, critical temperature and duty, tolerance
+- **Serial Port Console Redirection** — COM0 console redirect (Terminal Type, baud, flow control); Legacy Console Redirection; EMS (Windows Emergency Management)
+- **PCI Subsystem Settings** (Form 0x2740)
+  - PCI Latency Timer, PCI-X Latency Timer, VGA Palette Snoop, PERR#/SERR# Generation
+  - **Above 4G Decoding** ← ★ enable for Tesla V100 / large-BAR GPUs
+  - SR-IOV Support, BME DMA Mitigation
+  - PCI Express Settings → ASPM Support, Relaxed Ordering, Extended Tag, No Snoop, Max Payload/Read Request, Extended Synch, Link Training Retry/Timeout
+  - PCI Express GEN 2 Settings → Completion Timeout, ARI Forwarding, AtomicOp, IDO, LTR, Target Link Speed, Clock Power Management, HW Auto Width/Speed
+- **Network Stack Configuration** — Network Stack enable, IPv4/IPv6 PXE support, PXE boot wait time, Media detect count, LAN Wake-up Control
+- **CSM Configuration** (Form 0x2747)
+  - **CSM Support** ← ★ disable for UEFI-only boot (requires UEFI GOP on all GPUs)
+  - GateA20 Active, Option ROM Messages, Boot option filter (UEFI+Legacy / Legacy only / UEFI only)
   - Option ROM Execution:
     - Network — Do not launch / UEFI / Legacy
-    - Storage — Do not launch / UEFI / Legacy (affects SATA/NVMe init; set UEFI for NVMe)
-    - **Video — Do not launch / UEFI / Legacy** ← key for GPU init; default Legacy; change to UEFI after GOP flash
+    - Storage — Do not launch / UEFI / Legacy (set UEFI for NVMe)
+    - **Video** — Do not launch / UEFI / **Legacy** (change to UEFI after GOP flash; irrelevant when CSM off)
     - Other PCI devices
-  - GateA20 Active — Upon Request / Always
-  - Option ROM Messages — Force BIOS / Keep Current
-- **NVMe Configuration** — NVMe device detection and info
-- **HDD Security Configuration** — ATA Security unlock
-- **USB Configuration** — USB support, Full Initial / Partial Initial / Disabled
+  - (When CSM disabled: "CSM configuration is disabled — Compatibility Support Module is not loaded due to active UEFI Secure Boot mode.")
+- **NVMe Configuration** — NVMe controller and drive information (shows "No NVME Device Found" if none present)
+- **USB Configuration** — USB Support, Legacy USB Support, USB 2.0 Controller Mode, XHCI Legacy/Hand-off, EHCI Hand-off, USB Mass Storage Driver, Port 60/64 Emulation, transfer/reset/power-up delay timeouts; per-port device type overrides
 
-#### Chipset (IntelRCSetup)
+#### Chipset (IntelRCSetup — runtime-populated by Chipset DXE)
+
+*The following structure was confirmed from Chipset DXE UCS-2 string extraction; exact sub-options may vary at runtime.*
 
 - **Processor Configuration**
-  - Hyper-Threading [ALL] — Enable/Disable logical processor threads (all cores)
-  - Enhanced Halt State (C1E) — CPU idle state; Enable by default
-  - Execute Disable Bit (XD/NX) — Hardware data execution prevention
-  - EIST (P-states) — Intel Enhanced SpeedStep; required for Turbo Power Limit to be configurable
-  - **Turbo Mode** — Enable Intel Turbo Boost; must be enabled for TBU multipliers to take effect
-  - **CPU C State Control / Package C State limit** — Set to **C1E or Disable** (never C6) to prevent boot failures on this board
-  - Energy Efficient Turbo — Delays turbo engagement; set to Disabled for sustained performance
-  - Turbo Power Limit Lock — Locks TURBO_POWER_LIMIT MSR; keep Disabled for TBU tuning
+  - Hyper-Threading [ALL]
+  - Enhanced Halt State (C1E)
+  - Execute Disable Bit (XD/NX)
+  - EIST (Enhanced SpeedStep / P-states)
+  - **Turbo Mode** — required for TBU multipliers
+  - **CPU C State Control / Package C State limit** — set to **C1E or Disabled** (never C6 — causes boot failures)
+  - Energy Efficient Turbo, Turbo Power Limit Lock
   - Non-Turbo Mode Processor Core Ratio Multiplier
   - Turbo-XE Mode TDC/TDP Limit Override
-- **PCI Express Configuration**
-  - PCI Express Root Port 1–8 Settings (PCIe x1–x16 slots; individual enable/disable, ASPM, speed)
-  - PCI Express Port Config 1/2
-  - PCH-PCIE ASPM
-  - **Intel VT for Directed I/O (VT-d)** — Enable for IOMMU/GPU passthrough (Proxmox, KVM)
-    - Interrupt Remapping — Enable/Disable VT-d interrupt remapping support
-- **Memory Map** — Memory mapping configuration
+- **IIO Configuration** (IIO General Configuration)
+  - **Intel VT for Directed I/O (VT-d)** ← ★ enable for IOMMU/GPU passthrough (Proxmox, KVM)
+    - Interrupt Remapping
+  - IIO PCIe Root Port settings (per-port enable/disable, speed, ASPM)
+- **Memory Map** — memory mapping configuration
+- **PCH Configuration** — PCH-level settings (USB, SATA, PCH PCIe ports, etc.)
 
 #### Boot
 
-- Quiet Boot — Suppress POST details / show logo
-- Fast Boot — Skip some POST checks
-- Boot Configuration — Setup Prompt Timeout, Bootup NumLock State
-- Boot Option Priorities — Ordered boot device list
-- Add New Boot Option / Delete Boot Option
+- Boot Configuration: Setup Prompt Timeout, Bootup NumLock State
+- **Fast Boot** — SATA Support, VGA Support, USB Support, PS2 Devices Support, Network Stack Driver Support, Redirection Support
+- **Quiet Boot** — suppress POST details / show logo
+- Built-in EFI Shell option
+- Boot Option Priorities (`Boot Option #N`)
 - Driver Option Priorities
-- Launch Built-in EFI Shell
 
 #### Security
 
 - Administrator Password / User Password
-- Secure Boot (SecureBootSetup) — Must be **Disabled** for Linux/Proxmox with unsigned kernels
+- Secure Boot menu:
+  - Vendor Keys, **Secure Boot** (must be **Disabled** for Linux/Proxmox unsigned kernels), Secure Boot Mode
+  - Key Management: Provision Factory Default keys, Delete/Enroll/Save all Secure Boot variables (PK, KEK, db, dbx, dbt)
 
 #### Save & Exit
 
-- Save Changes and Exit
-- Discard Changes and Exit
+- Save Changes and Exit / Discard Changes and Exit
 - Save Changes and Reset / Discard Changes and Reset
 - Save Changes / Discard Changes
-- **Restore Defaults** — Also accessible via **F6** key from any BIOS screen (Load Optimized Defaults — mandatory after BIOS flash)
+- **Restore Defaults** — also **F6** key from any screen (mandatory after BIOS flash)
 - Save as User Defaults / Restore User Defaults
-- Boot Override — One-time boot device selection
-- Launch EFI Shell from filesystem device
+- Boot Override — one-time boot device selection
 
-> **CSM / OpROM note:** The default "Option ROM Execution → Video = Legacy" causes the BIOS to run the GPU's legacy x86 option ROM at POST. After flashing a UEFI GOP VBIOS onto the GT-710 (or any GPU), change this to **UEFI**. When CSM is fully Disabled, this setting has no effect — the GOP driver initializes all displays natively. Disabling CSM may automatically enable Above 4G Decoding on some AMI implementations.
+> **CSM / OpROM note:** The default "Option ROM Execution → Video = Legacy" runs the GPU's legacy x86 option ROM at POST. After flashing a UEFI GOP VBIOS onto the GT-710 (or any GPU), change this to **UEFI**. When CSM is fully Disabled, this setting has no effect — the GOP EFI driver initializes all displays natively.
 
-> **VT-x note:** On Xeon E5 (Haswell-EP) processors, Intel VT-x (VMX) is always available in hardware and is reported as enabled to the OS. There is no separate VT-x toggle in this BIOS — it is permanently active. Only VT-d has an explicit BIOS toggle.
+> **VT-x note:** On Xeon E5 (Haswell-EP) processors, Intel VT-x (VMX) is always enabled in hardware. There is no separate VT-x toggle in this BIOS — it is permanently active. Only VT-d has an explicit BIOS toggle.
 
 ## Community Resources
 
