@@ -7,16 +7,20 @@ description: YMZX-4GPU-Q1 quad-SXM2 GPU carrier baseboard. Hosts 4× NVIDIA SXM2
 | Field | Value |
 |---|---|
 | **Model** | YMZX-4GPU-Q1 |
+| **Manufacturer** | YMZX (Guangzhou) AI Technology Co., Ltd. (广州意锟智能科技有限公司) |
+| **Website** | https://nusgrtii.cn |
+| **Founded** | ~2020–2021 |
 | **Type** | Quad-SXM2 GPU carrier / baseboard |
 | **GPU Slots** | 4× SXM2 (NVIDIA SXM2 form factor) |
 | **NVLink** | Supported — requires on-board mux/NVSwitch chips for 4-GPU topology |
-| **Host Interface** | PCIe (exact connector count/type unconfirmed) |
+| **Host Interface** | Likely 4× SFF-8654-8i SlimSAS x8 PCIe 3.0 (confirmed on 2-slot TNS variant; unconfirmed for YMZX-4GPU-Q1) |
 | **Power** | 12V DC per SXM2 module; on-board VRMs per slot |
 | **Connectors** | Amphenol Meg-Array (PCIe + NVLink per module) |
 | **Price (2026)** | ~$818 USD (eBay) |
 | **eBay listing** | https://www.ebay.com/itm/298083941971 |
 | **Origin** | China (Shenzhen/Guangdong) |
-| **Related board** | TNS-2SXM2-4P54 (2-slot predecessor; same BIOS requirements) |
+| **Related board** | TNS-2SXM2-4P54 (2-slot variant; same BIOS requirements and connector family) |
+| **Software ecosystem** | 1CatAI / 1Cat-vLLM (https://github.com/1CatAI/1Cat-vLLM) |
 
 ## Photos
 
@@ -96,6 +100,20 @@ options nvidia NVreg_DynamicPowerManagement=0x02
 | Closed-source driver required | `nvidia-open` incompatible with GV100 (V100) and GA100 (PG199/DRIVE A100) |
 | No official documentation | No public spec sheet; board from Chinese OEM with minimal support |
 
+## Real-World Performance (2× V100 SXM2 32 GB on TNS-2SXM2-4P54)
+
+Source: angrysysadmins.tech blog (AMD Threadripper 2950X host):
+
+| Model | Generation Speed (tok/s) |
+|---|---|
+| qwen3-coder:30b | 98.84 |
+| nemotron-3-nano:30b | 122.51 |
+| lfm2:24b | 138.48 |
+| gpt-oss:20b | 119.43 |
+| llama3.2:3b | 207.62 |
+
+> Powered by [1Cat-vLLM](https://github.com/1CatAI/1Cat-vLLM) — fork of vLLM for Tesla V100 (SM70) with AWQ 4-bit quantization, CUDA 12.8, and vLLM v0.9.1.
+
 ## Comparison: YMZX-4GPU-Q1 vs TNS-2SXM2-4P54
 
 | Feature | YMZX-4GPU-Q1 | TNS-2SXM2-4P54 |
@@ -103,7 +121,7 @@ options nvidia NVreg_DynamicPowerManagement=0x02
 | GPU slots | 4× SXM2 | 2× SXM2 |
 | Max VRAM (V100 32G) | 128 GB | 64 GB |
 | NVLink GPUs | 4 (mux required) | 2 (direct) |
-| Host interface | PCIe (unconfirmed count) | 4× SFF-8654-8i |
+| Host interface | Likely 4× SFF-8654-8i (unconfirmed) | 4× SFF-8654-8i (confirmed) |
 | Companion riser | Unknown | 2× RTE162P54B-2UR |
 | Price (2026) | ~$818 | Kit ~$200–400 |
 | NVLink tested | Unconfirmed at 4-GPU | Confirmed 2-GPU |
@@ -115,6 +133,8 @@ options nvidia NVreg_DynamicPowerManagement=0x02
 - Board photo source: https://angrysysadmins.tech/wp-content/uploads/2026/03/YMZX-4GPU-Q1.jpg
 - SXM2 reverse engineering: https://github.com/l4rz/running-nvidia-sxm-gpus-in-consumer-pcs
 - SXM socket info: https://en.wikipedia.org/wiki/SXM_(socket)
+- YMZX company profile: https://nusgrtii.cn
+- 1CatAI vLLM (V100-optimized): https://github.com/1CatAI/1Cat-vLLM
 
 ## TODO / Unresolved
 
