@@ -157,11 +157,19 @@ Confirmed hardware as of live system inspection (Ubuntu 24.04.4 LTS live via Ven
 
 ### Key BIOS Settings
 
-| Setting | Recommendation |
-|---|---|
-| CPU C-States → C6 | **Disable** — can cause random instability / boot failures |
-| Load Optimized Defaults | Always run after any BIOS flash (F6 or equivalent) |
-| Memory XMP/OC | Not supported; runs at JEDEC defaults |
+| Setting | Menu Path | Recommendation |
+|---|---|---|
+| Load Optimized Defaults | F6 key on main BIOS screen | **Required** after any BIOS flash |
+| CPU C-State → C6 | Chipset → Processor Configuration → CPU C State Control / Package C State limit | **Disable C6** — causes random instability / boot failures on this board |
+| Above 4G Decoding | Advanced → PCI Subsystem Settings → PCI Express Settings | **Enable** when using GPUs with large BARs (Tesla V100, RX 5700+, RTX series) |
+| CSM Support | Advanced → CSM Configuration → CSM Support | **Disable** for UEFI-only GPU / clean UEFI boot; requires UEFI GOP VBIOS on all GPUs |
+| Video Option ROM | Advanced → CSM Configuration → Option ROM Execution → Video | **UEFI** (with CSM off or UEFI GOP GPU); **Legacy** only if GPU has no UEFI GOP |
+| Intel VT-d (IOMMU) | Chipset → PCI Express Configuration → Intel VT for Directed I/O (VT-d) | **Enable** for GPU passthrough / IOMMU |
+| Hyper-Threading | Chipset → Processor Configuration → Hyper-Threading [ALL] | Enable (default) for workloads; disable for latency-sensitive single-threaded use |
+| Turbo Mode | Chipset → Processor Configuration → Turbo Mode | **Enable** (default); required for TBU to have effect |
+| SR-IOV Support | Advanced → PCI Subsystem Settings → PCI Express Settings → SR-IOV Support | Enable if using NIC SR-IOV or GPU virtual functions |
+| Secure Boot | Security → Secure Boot | Disable for Linux/Proxmox (unsigned kernels) |
+| Memory XMP/OC | N/A | **Not supported**; runs at JEDEC defaults only |
 
 ### Patched Huananzhi BIOS
 
@@ -417,20 +425,99 @@ Since the OS brings up display normally, you can operate with Above 4G Decoding 
 3. Run `ssh mra9` — if it connects, the system is fully functional
 4. Install V100s, verify no "PCI Out of Resources" errors: `dmesg | grep -i 'pci\|bar\|resource'`
 
-### BIOS Navigation (Huananzhi X99-8M-F, Machinist MRA9 v1.0)
+### BIOS Menu Reference (Huananzhi X99-8M-F, Machinist MRA9 v1.0)
 
-These menus are confirmed to exist in the Huananzhi-patched BIOS on this board:
+Full menu tree extracted from BIOS ROM firmware strings (TBU-machinist-x99-mr9a-20240227-102043.rom).
+Top-level tabs: **Main → Advanced → Chipset → Boot → Security → Save & Exit**
 
-| Path | Location |
-|---|---|
-| Above 4G Decoding | Main BIOS setup → Advanced → PCIe/PCI settings (or similar top-level PCIe menu) |
-| Active Video (offboard/onboard) | IntelRCSetup → Miscellaneous Configuration → Active Video |
-| Option ROM Execution → Video | BIOS → Advanced → CSM Configuration → Option ROM Execution → Video |
-| PCH Display | PCH settings section |
-| Legacy VGA socket | IntelRCSetup → IIO Configuration → Legacy VGA Socket |
-| Load Optimized Defaults | F6 key from main BIOS screen (essential after any BIOS flash) |
+#### Main
 
-> **CSM / OpROM note:** "Option ROM Execution → Video = Legacy" is the **default** setting in this BIOS. It means the BIOS will try to run the GPU's legacy x86 option ROM during POST. This is correct for legacy VBIOSes. After flashing UEFI GOP VBIOS, change this to "UEFI" (or "Do Not Execute" if the GPU initializes via GOP without being called as legacy ROM).
+- System Language
+- BIOS Information (Vendor, Core Version, Compliancy, Board Name, BIOS Version, Build Date/Time)
+- System Date
+- System Time
+- Access Level
+
+#### Advanced
+
+- **NCT5532D SSIO Configuration** — Super I/O (Serial/parallel ports, CIR)
+- **Hardware Monitor (PC Health Status)** — CPU temps, fan RPM, voltages; Smart Fan Function for CPU_FAN1
+- **ACPI Settings** — Sleep State (S1 / S3), Hibernation, Lock Legacy Resources, S3 Video Repost
+- **PCI Subsystem Settings**
+  - PCI Express Settings
+    - **Above 4G Decoding** — Enable to map 64-bit BARs above 4 GB (required for Tesla V100, RTX, RX 5700+)
+    - SR-IOV Support
+    - BME DMA Mitigation
+    - ASPM Support
+    - PCI Latency Timer / PCI-X Latency Timer / Extended Synch / Extended Tag
+  - PCI Hot-Plug Settings
+  - PCI Bus Driver Version
+- **Serial Port Console Redirection** — UART-based console for headless management
+- **Network Stack Configuration** — IPv4/IPv6 PXE boot; IPsec certificate
+- **CSM Configuration**
+  - CSM Support — Enable / Disable (Disable for UEFI-only mode; requires UEFI GOP on all GPUs)
+  - Boot Option Filter — UEFI and Legacy / Legacy only / UEFI only
+  - Option ROM Execution:
+    - Network — Do not launch / UEFI / Legacy
+    - Storage — Do not launch / UEFI / Legacy (affects SATA/NVMe init; set UEFI for NVMe)
+    - **Video — Do not launch / UEFI / Legacy** ← key for GPU init; default Legacy; change to UEFI after GOP flash
+    - Other PCI devices
+  - GateA20 Active — Upon Request / Always
+  - Option ROM Messages — Force BIOS / Keep Current
+- **NVMe Configuration** — NVMe device detection and info
+- **HDD Security Configuration** — ATA Security unlock
+- **USB Configuration** — USB support, Full Initial / Partial Initial / Disabled
+
+#### Chipset (IntelRCSetup)
+
+- **Processor Configuration**
+  - Hyper-Threading [ALL] — Enable/Disable logical processor threads (all cores)
+  - Enhanced Halt State (C1E) — CPU idle state; Enable by default
+  - Execute Disable Bit (XD/NX) — Hardware data execution prevention
+  - EIST (P-states) — Intel Enhanced SpeedStep; required for Turbo Power Limit to be configurable
+  - **Turbo Mode** — Enable Intel Turbo Boost; must be enabled for TBU multipliers to take effect
+  - **CPU C State Control / Package C State limit** — Set to **C1E or Disable** (never C6) to prevent boot failures on this board
+  - Energy Efficient Turbo — Delays turbo engagement; set to Disabled for sustained performance
+  - Turbo Power Limit Lock — Locks TURBO_POWER_LIMIT MSR; keep Disabled for TBU tuning
+  - Non-Turbo Mode Processor Core Ratio Multiplier
+  - Turbo-XE Mode TDC/TDP Limit Override
+- **PCI Express Configuration**
+  - PCI Express Root Port 1–8 Settings (PCIe x1–x16 slots; individual enable/disable, ASPM, speed)
+  - PCI Express Port Config 1/2
+  - PCH-PCIE ASPM
+  - **Intel VT for Directed I/O (VT-d)** — Enable for IOMMU/GPU passthrough (Proxmox, KVM)
+    - Interrupt Remapping — Enable/Disable VT-d interrupt remapping support
+- **Memory Map** — Memory mapping configuration
+
+#### Boot
+
+- Quiet Boot — Suppress POST details / show logo
+- Fast Boot — Skip some POST checks
+- Boot Configuration — Setup Prompt Timeout, Bootup NumLock State
+- Boot Option Priorities — Ordered boot device list
+- Add New Boot Option / Delete Boot Option
+- Driver Option Priorities
+- Launch Built-in EFI Shell
+
+#### Security
+
+- Administrator Password / User Password
+- Secure Boot (SecureBootSetup) — Must be **Disabled** for Linux/Proxmox with unsigned kernels
+
+#### Save & Exit
+
+- Save Changes and Exit
+- Discard Changes and Exit
+- Save Changes and Reset / Discard Changes and Reset
+- Save Changes / Discard Changes
+- **Restore Defaults** — Also accessible via **F6** key from any BIOS screen (Load Optimized Defaults — mandatory after BIOS flash)
+- Save as User Defaults / Restore User Defaults
+- Boot Override — One-time boot device selection
+- Launch EFI Shell from filesystem device
+
+> **CSM / OpROM note:** The default "Option ROM Execution → Video = Legacy" causes the BIOS to run the GPU's legacy x86 option ROM at POST. After flashing a UEFI GOP VBIOS onto the GT-710 (or any GPU), change this to **UEFI**. When CSM is fully Disabled, this setting has no effect — the GOP driver initializes all displays natively. Disabling CSM may automatically enable Above 4G Decoding on some AMI implementations.
+
+> **VT-x note:** On Xeon E5 (Haswell-EP) processors, Intel VT-x (VMX) is always available in hardware and is reported as enabled to the OS. There is no separate VT-x toggle in this BIOS — it is permanently active. Only VT-d has an explicit BIOS toggle.
 
 ## Community Resources
 
