@@ -258,3 +258,84 @@ Spread DIMMs across channels before doubling up in any channel.
 - [ServeTheHome forum thread — ES CPU discussion](https://forums.servethehome.com/index.php?threads/epyc-es-series-on-huananzhi-h12d-8d.50421/)
 - [BIOS Update Tutorial on YouTube](https://www.youtube.com/watch?v=nCq0WRROdS8)
 - [AliExpress listing with specs](https://www.aliexpress.com/item/1005008701050951.html)
+
+---
+
+## BIOS Update
+
+### Available Update (2025-04-21)
+
+| Item | Value |
+|------|-------|
+| Filename | `H12D-8DBIOS(IncreaseResizableBARandoptimizePCIesplitting.).zip` |
+| Purpose | 增加Resizable BAR 优化PCIE拆分 — *Add Resizable BAR support, optimize PCIe lane splitting* |
+| Firmware file | `EPYCATX_32MB_R18_M16.bin` (32 MB) |
+| Flash tool | `AfuEfix64.efi` (AMI Firmware Update Utility for EFI shell) |
+
+### EFI Shell Flash Procedure
+
+The zip contains a `startup.nsh` that auto-discovers the USB drive and flashes:
+
+```nsh
+@echo -off
+set FileName EPYCATX_32MB_R18_M16.bin
+for %a run (0 20)
+    fs%a:
+    cd %FilePath%
+    if exist %FileName% then
+        AfuEfix64 %FileName% /P /B /N /K
+        goto End
+    endif
+endfor
+echo Error: Bios not found.
+:End
+```
+
+**Manual flash command:**
+```
+AfuEfix64 EPYCATX_32MB_R18_M16.bin /P /B /N /K
+```
+
+Flags: `/P` = program main block, `/B` = program boot block, `/N` = program NVRAM, `/K` = keep DMI data.
+
+**Steps:**
+1. Format USB stick as FAT32; copy zip contents to root.
+2. Boot into EFI shell (BIOS → Boot Override → EFI Shell, or hit DEL → Shell).
+3. If `startup.nsh` runs automatically: wait for flash to complete.
+4. If manual: `fs0:` → `AfuEfix64 EPYCATX_32MB_R18_M16.bin /P /B /N /K`.
+5. System reboots automatically when done.
+
+---
+
+## Firmware & Drivers
+
+### Chipset Driver
+
+| Item | Value |
+|------|-------|
+| Package | `AMD_Chipset_Drivers_2.18.30.202.exe` |
+| OS | Windows |
+| Date | 2021-06-30 |
+| Notes | Installs AMD PSP, USB4/GPIO/ACPI, NVMe RAID (RCRAID), StoreMI, etc. |
+
+### LAN Firmware (Intel NIC)
+
+| Item | Value |
+|------|-------|
+| Package | Intel BootUtil (January 2025) |
+| EFI flash | `BOOTUTIL64E.EFI` (run from EFI shell) |
+| Linux | `bootutil64e` or `bootutile` (shell binary) |
+| FreeBSD | `bootutilf64` |
+| Windows | `BootScd.exe` |
+| Usage | `BOOTUTIL64E.EFI -UP -FILE=<image>` or run without args for interactive menu |
+
+### VGA Driver (BMC AST2500 ASPEED)
+
+> Only needed when the optional BMC module is installed (AST2500).
+
+| Item | Value |
+|------|-------|
+| Driver | AMD ASPEED AST WDDM driver |
+| OS | Windows Server 2012 R2, 2016, 2019, 2022 |
+| Format | MSI installer (separate per OS version) |
+| Notes | For BMC remote console / video output via rear VGA. Not required on Linux (use `ast` kernel module). |

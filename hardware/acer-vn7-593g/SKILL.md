@@ -271,3 +271,53 @@ The connected Thunderbolt dock presents the following hub tree:
 - [Intel Wi-Fi 6 AX200 product brief](https://www.intel.com/content/www/us/en/products/sku/189347/intel-wi-fi-6-ax200/specifications.html)
 - [AUO N156DCE-GA1 panel datasheet](https://www.panelook.com/N156DCE-GA1_AUO_15.6_LCM_overview_38073.html)
 - [LGC AC16A8N battery replacement](https://www.ifixit.com/) (search: Acer Aspire V Nitro VN7-593G battery)
+
+---
+
+## BIOS
+
+| Item | Value |
+|------|-------|
+| Vendor | Insyde H2O |
+| Version | V1.11 (file: `BIOS_111.exe`) |
+| Date | 2018 |
+| Platform | Kaby Lake (Intel 7th gen) |
+| Flash method | Windows (run `BIOS_111.exe` from Windows, self-extracts and flashes) |
+| Source | `/home/renne/Dokumente/Geräte/ACER-Aspire_VN7-593G/BIOS_111.exe` |
+
+> ⚠️ No newer BIOS version is known. V1.11 is the latest available.
+
+---
+
+## GPU VBIOS Files
+
+Two identical copies of the GTX 1060M VBIOS ROM exist:
+
+| File | Location | MD5 |
+|------|----------|-----|
+| `NVIDIA_GTX1060M_VBIOS.rom` | `/home/renne/Dokumente/Geräte/` (root) | `dae91ffe62f286722b91c0b6634406dd` |
+| `NVidia_Geforce_GTX_1060m-GP106.rom` | `.../ACER-Aspire_VN7-593G/NVidia_GTX_1060m/` | `dae91ffe62f286722b91c0b6634406dd` |
+
+Both files are **byte-for-byte identical** (same MD5). The root copy is a backup; the subfolder copy is the primary.
+
+**GPU model:** NVIDIA GeForce GTX 1060M, GP106 die, Mobile variant
+
+### ACPI/Optimus: SSDT1.dat
+
+| File | Location |
+|------|----------|
+| `SSDT1.dat` | `.../ACER-Aspire_VN7-593G/NVidia_GTX_1060m/SSDT1.dat` |
+
+This is an ACPI Secondary System Description Table used for NVIDIA Optimus (GPU switching) configuration. Used when patching ACPI tables for dGPU passthrough or Optimus override.
+
+### VBIOS Flash (Emergency Recovery)
+
+Use `nvflash` (NVIDIA's VBIOS flash utility):
+```bash
+# List GPU index
+nvflash --list
+# Flash (replace X with GPU index, use at own risk)
+nvflash -6 NVidia_Geforce_GTX_1060m-GP106.rom --index=X
+```
+
+> ⚠️ VBIOS flashing on laptops is risky. Only attempt if GPU VBIOS is corrupted.

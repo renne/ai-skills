@@ -159,3 +159,57 @@ Summary:
 - [Intel Celeron G4900 Specs](https://ark.intel.com/content/www/us/en/ark/products/129909/intel-celeron-processor-g4900-2m-cache-3-10-ghz.html)
 - [Intel I350-T4 Datasheet](https://www.intel.com/content/www/us/en/ethernet-products/gigabit-server-adapters/ethernet-server-adapter-i350-brief.html)
 - Network skill: `~/.copilot/networks/weissdornweg/pve3/SKILL.md`
+
+---
+
+## BIOS Update
+
+### Version: R1.26.0
+
+| Item | Value |
+|------|-------|
+| Version string | R1.26.0 |
+| Internal ID | V50012R1260 (used in filenames) |
+| Folder | `D3643-H1x.R1.26.0/` |
+| ROM file | `D3643-H1.ROM` |
+| Update capsule | `D3643-H1.UPD` |
+| Source | `/home/renne/Dokumente/Geräte/Fujitsu-D3643-H1/D3643-H1x.R1.26.0/` |
+
+### Flash Methods
+
+#### EFI Shell (Recommended)
+
+```
+EFI/FUJITSU/EfiFlash.efi
+```
+
+1. Copy entire BIOS folder contents to root of FAT32 USB stick.
+2. Boot → F12 → choose **"FUJITSU Update Utility"** (or launch EFI shell manually → `EFI\FUJITSU\EfiFlash.efi`).
+3. EfiFlash.efi auto-detects the update file and prompts for confirmation.
+4. See `EfiFlashEfiUsage.txt` for full option list (dump/restore/info supported).
+
+#### Windows
+
+```
+Windows/
+```
+
+Run the Windows flash utility from within a running Windows installation.
+
+#### TFTP (Network Flash)
+
+```
+TFTP/
+```
+
+For network-based BIOS updates via BMC/iRMC TFTP interface.
+
+---
+
+## Processor Compatibility
+
+Fujitsu D3643-H1 is branded as a **Kontron** motherboard. Full CPU compatibility matrix:
+
+> **PDF:** [Kontron Compatibility_CPU_x_Board.pdf](https://ftp.kontron.com/main.html?download&weblink=3cb83a90a99c51160d2aa1f1f34cc340&subfolder=Products/Motherboards/1_General_Information&realfilename=Compatibility_CPU_x_Board.pdf)
+
+This PDF covers all Kontron/Fujitsu motherboards with tested CPUs per BIOS version. Check this before installing a non-standard CPU (e.g., unlocked Xeon).
