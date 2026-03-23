@@ -121,6 +121,7 @@ If you see `PwrCtrl-`, software-controlled PCIe slot power cycling is not possib
 
 | Header            | Connector         | Function                              |
 |-------------------|-------------------|---------------------------------------|
+| F_PANEL1 (JFP1)   | 10-pin (2×5, pin 2 = KEY) | Power SW, Reset SW, Power LED, HDD LED |
 | USB 3.2 Gen1      | 19-pin            | Front panel USB 3.x                   |
 | USB 2.0           | 9-pin             | Front panel USB 2.0                   |
 | Audio             | Standard          | Front panel audio                     |
@@ -132,7 +133,31 @@ If you see `PwrCtrl-`, software-controlled PCIe slot power cycling is not possib
 | MB BIOS           | —                 | BIOS flash/recovery header            |
 | DE_BUG            | —                 | Onboard POST code debug display       |
 | System Restart    | —                 | System restart header                 |
-| F_Panel           | Standard          | Power SW, Reset SW, Power LED, HDD LED|
+
+### F_PANEL1 (JFP1) Pinout — Confirmed from Manual (Figure 2-4)
+
+10-pin 2×5 header; **pin 2 is KEY (no contact)**. Physical layout: 2 rows of 5, odd pins on left.
+
+```
+Left (odd)          Right (even)
+Pin 1: HDD LED+     Pin 2: KEY (no contact)
+Pin 3: HDD LED-     Pin 4: PWR LED-
+Pin 5: RESET SW     Pin 6: ATX PWR SW
+Pin 7: RESET SW     Pin 8: ATX PWR SW
+Pin 9: N.C          Pin 10: PWR LED+
+```
+
+**Wiring summary:**
+| Function    | Pins          | Notes                        |
+|-------------|---------------|------------------------------|
+| HDD LED     | 1 (+), 3 (−)  | Polarity matters for LED     |
+| PWR LED     | 10 (+), 4 (−) | Polarity matters for LED     |
+| RESET SW    | 5, 7          | Polarity irrelevant (switch) |
+| **ATX PWR SW** | **6, 8**   | **Polarity irrelevant (switch)** |
+
+> ⚠️ The ATX PWR SW (pins 6+8) is tied to **host power state** — shorting it toggles the system power on/off. It is **not suitable** for per-GPU power control (switching it off powers down the entire host).
+
+> 📝 The English translation of the manual has jumbled pin numbering; the Chinese-language version (Figure 2-4) is authoritative.
 
 ## Cooling & Fan Headers
 
