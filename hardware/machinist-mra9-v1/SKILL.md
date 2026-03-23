@@ -98,6 +98,22 @@ Confirmed hardware as of live system inspection (Ubuntu 24.04.4 LTS live via Ven
 > **Community consensus (2024):** No confirmed BIOS mod enables working OS-level ECC on MR9A or any similar Chinese X99 board. The [0x8008/mr9a](https://github.com/0x8008/mr9a) repo has Turbo Unlock, undervolting, and ReBAR mods — no ECC patches. Win-Raid forum users report the same "ECC is disabled" outcome even after `setup_var` attempts. Commercial patched BIOSes claim ECC but provide no verifiable evidence.
 >
 > **Conclusion:** ECC hardware is present in both DIMMs and CPU IMC. The X99MA011 MRC has a firmware defect where it unconditionally configures the IMC with ECC off, regardless of the NVAR setting. **This is a known, unfixable limitation of this BIOS revision.** If ECC is required, use a proper server platform (e.g., Intel S2600 series or Supermicro X10 with IPMI).
+>
+> **MRC module comparison across ROM variants (`UncoreInitPeim`, GUID `D71C8BA4-4AF2-4D0D-B1BA-F2409F0C20D3`):**
+>
+> | ROM | Build string | PE32 size | SHA256 (prefix) | Status |
+> |-----|-------------|-----------|-----------------|--------|
+> | LIVE (`X99MA011`, 2020-10-15) | Machinist AMI original | 604832 B | `16a763f4…` | **Currently flashed** — ignores ECC NVAR |
+> | STOCK (`X9R9A Ver:003`, 2023-11-10) | Machinist stock 2024 dump | 604064 B | `fd4d3aa3…` | **Different MRC** — 87% of bytes differ from LIVE |
+> | TBU (ser8989 TurboHack, 2024-02-27) | Huananzhi X99-8M-F base | 604832 B | `35dd3389…` | Same size as LIVE — likely same ECC behaviour |
+> | REBAR / LOGO | same TBU base | 604832 B | identical to TBU | same as TBU |
+>
+> Key findings from binary comparison (March 2026):
+> - `{sMRc` bytes found at ROM offset `0x11b32` in all three ROMs — this is inside the **Intel ME firmware region** (encrypted), not the BIOS PEI FV. Prior "MRC identical" conclusion based on this marker was **wrong** — it was a coincidence in ME data.
+> - STOCK MRC (`UncoreInitPeim` PE32) is a **genuinely different binary** — 768 B smaller, 526,961 / 604,064 bytes differ (87%). All PE32 compile timestamps are stripped (zero).
+> - A string `!mRC` found at STOCK raw offset `0xb2ed10` is inside an **LZMA-compressed DXE section** (GUID `EE4E5898-3914-4259-9D6E-DC7BD79403CF`) — coincidental byte pattern in compressed data, not a real marker.
+> - Whether STOCK's different MRC honours the ECC NVAR (`0x11ff = 0x01`) is **untested** — flashing STOCK is the only remaining experiment.
+> - **RISK**: STOCK build string is `X9R9A` vs LIVE's `X99MA011`; may target a different sub-variant. Full backup + SPI programmer recovery precaution is essential before testing.
 
 > **BIOS ECC Toggle (Live ROM — X99MA011):** The Live BIOS IFR (Setup DXE) contains an **ECC Support** option:
 > - Menu path: **IntelRCSetup → iMC (GOTO) → Memory Configuration → ECC Support**
@@ -291,7 +307,7 @@ An independent custom BIOS by **iEngineer** is available as an alternative to th
 | **CPU fan (4-pin) required to boot** | **Critical** | Board will NOT initialize BIOS/CPU without a 4-pin fan on CPU_FAN1 — hard firmware requirement |
 | Temperature sensor reads 120 °C or random values | High | Hardware defect in v1.0; do not use for alerts/automation |
 | USB 3.0 instability under heavy load | High | Can cause system lockups; improved in v2.0 |
-| No ECC error correction despite ECC DIMMs | **Critical** | **Permanent BIOS defect — no known fix.** X99MA011 MRC hardcodes ECC off. UI changes silently discarded; direct SPI NVAR patch (`0x801495=0x01`) persists but MRC ignores it; MCMTR register at `ff:13.0+0x7c` is read-only post-boot. Community consensus (2024): no working ECC mod exists for any Chinese X99 board. If ECC is required, use a proper server board. |
+| No ECC error correction despite ECC DIMMs | **Critical** | **X99MA011 MRC hardcodes ECC off.** UI changes silently discarded; direct SPI NVAR patch (`0x801495=0x01`) persists but MRC ignores it; MCMTR at `ff:13.0+0x7c` read-only post-boot. Community consensus (2024): no confirmed ECC mod for Chinese X99 boards. **One untested path remaining:** STOCK ROM (2024, `X9R9A`) has a genuinely different MRC binary (87% bytes differ from X99MA011) — flashing STOCK and re-testing is the only remaining experiment. Full backup + CH341A recovery required. See ECC Caveat note. |
 | No TPM 2.0 header | Medium | Windows 11 TPM requirement cannot be met natively |
 | No POST debug display | Low | Must use speaker beep codes for boot failures |
 | Stock BIOS lacks C-state controls | Medium | Patched Huananzhi BIOS exposes and allows disabling C6 |
