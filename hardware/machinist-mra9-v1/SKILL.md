@@ -22,7 +22,7 @@ Revision v1.0 is the original production run — no debug display, no onboard po
 | BIOS Type | Legacy + UEFI (AMI) |
 | BIOS Version | AMI 5.11 (Huananzhi-patched), released 10/15/2020 |
 
-> **Note:** Despite "X99" marketing, this board uses a **desktop chipset (B85/Q87/C226)**, NOT Intel X99 or C612. This limits PCIe bifurcation, VROC, IPMI, and overclocking. **ECC is not limited by the PCH** — the Xeon E5 v3 IMC controls memory directly; ECC is currently disabled by BIOS default and may be enabled via `setup_var.efi 0x11ff 0x01`.
+> **Note:** Despite "X99" marketing, this board uses a **desktop chipset (B85/Q87/C226)**, NOT Intel X99 or C612. This limits PCIe bifurcation, VROC, IPMI, and overclocking. **ECC is not limited by the PCH** — the Xeon E5 v3 IMC controls memory directly; **ECC is permanently disabled by the X99MA011 BIOS MRC — all software override attempts have failed** (see ECC Caveat note).
 
 ## Installed Configuration (`mra9`)
 
@@ -77,22 +77,35 @@ Confirmed hardware as of live system inspection (Ubuntu 24.04.4 LTS live via Ven
 | Channels | Quad-channel (populate all 4 for quad-channel) |
 | Capacity | Up to 128 GB total |
 | Speed | DDR4-2133 / 2400 / 2933 (JEDEC); actual running speed **1866 MT/s** on `mra9` (see note) |
-| ECC support | ECC RDIMMs POST and boot; **ECC error correction is currently NOT enabled** — `EDAC sbridge` kernel driver reports `"CPU SrcID #0, Ha #0, Channel #0 has DIMMs, but ECC is disabled"`. This is a **BIOS configuration issue, not a silicon limitation** — the Xeon E5-2696v3 IMC fully supports ECC; enabling it requires `setup_var.efi 0x11ff 0x01` in UEFI shell (see ECC Caveat note below). |
+| ECC support | ECC RDIMMs POST and boot; **ECC error correction is permanently disabled by the BIOS MRC** — `EDAC sbridge` kernel driver reports `"CPU SrcID #0, Ha #0, Channel #0 has DIMMs, but ECC is disabled"`. The Xeon E5-2620 v3 IMC fully supports ECC in silicon, but the X99MA011 BIOS MRC (Memory Reference Code) hardcodes ECC off and ignores all attempts to override it. **All known software-reachable approaches have been exhausted** — see ECC Caveat note below. |
 | Non-ECC | Supported |
 | RDIMM | **Yes** — the E5-2620 v3's integrated memory controller (IMC) natively supports RDIMM. The Q87 PCH is irrelevant to memory type on LGA 2011-3; all memory signaling goes through the CPU IMC, not the chipset. Community-validated on this board. |
 | LRDIMM | Compatibility varies by module; some work, some fail to POST. |
 
 > **RDIMM & Chipset clarification:** On LGA 2011-3, the Q87 PCH does **not** control memory. The Intel E5 v3 CPU has a fully integrated DDR4 memory controller supporting UDIMM, RDIMM, and LRDIMM. The Q87 in this system handles chipset I/O (SATA, USB, PCIe from PCH lanes) — memory type support depends solely on the CPU IMC and the board's slot wiring, both of which accept registered DIMMs.
 
-> **ECC Caveat:** Linux `dmesg` / `edac-util` will report no ECC support currently. The EDAC `sbridge` driver loads, finds the DIMMs via the **CPU IMC PCI registers** (`0x2f**` device IDs — Haswell-EP IMC, not PCH), but exits with `"ECC is disabled"` and registers no memory controller in `/sys/devices/system/edac/mc/`. **This is a BIOS firmware configuration issue, not a silicon limitation.** The Q87 PCH has zero involvement with memory — all DDR4 channels are connected directly to the Xeon E5-2696v3's IMC. The CPU's own IMC is reporting ECC disabled, meaning the BIOS MRC (Memory Reference Code) did not configure the IMC to run with ECC during POST. Setting the ECC Support BIOS variable to "Enable" (`setup_var.efi 0x11ff 0x01` in UEFI shell) should instruct the MRC to enable ECC on the next boot — **this has not yet been tested on `mra9`**.
+> **ECC Caveat — PERMANENTLY DISABLED (all approaches exhausted):** Linux `dmesg` / `edac-util` reports no ECC. The EDAC `sbridge` driver loads, finds the DIMMs via Haswell-EP IMC PCI registers (`0x2f**` devices — not PCH), but exits with `"ECC is disabled"` and registers nothing in `/sys/devices/system/edac/mc/`. The Q87 PCH has zero DRAM involvement — all DDR4 is wired directly to the E5-2620 v3 IMC. The BIOS MRC (Memory Reference Code) in ROM X99MA011 (2020-10-15) **hardcodes ECC off** and ignores all NVAR settings. All approaches have been tested and failed:
+>
+> | Approach | Outcome |
+> |----------|---------|
+> | BIOS UI: IntelRCSetup → iMC → ECC Support → Enable → reboot | BIOS silently discards UI change; NVRAM is never written |
+> | Direct SPI patch: `0x801495=0x01` (primary NVAR) + `0x841495=0x01` (mirror) | Patch **persists** across reboots (verified via `hexdump`) — BIOS reads `0x01` but MRC ignores it |
+> | `setpci -s ff:12.0 0x7c.l=...` (MCMTR at HA0) | Wrong device — `sb_edac` reads MCMTR from `ff:13.0` (HA0_TA = 8086:2fa8), not `ff:12.0` |
+> | `setpci -s ff:13.0 0x7c.l=00014f04` (MCMTR bit 2 at HA0_TA) | Register is read-only post-boot; MRC locks it during POST memory training |
+>
+> **IFR confirmation:** Only **one** ECC Support ONE_OF exists in the entire Setup PE (PE offset `0x37e8d`): VarStoreId `0x0001` = `IntelSetup` GUID `EC87D643-EBA4-4BB5-A1E5-3F3E36B20DA9`, VarOffset **`0x11ff`**, UINT8. The SPI patch targets exactly the right NVAR at the right offset. The raw value is provably correct and persists; the MRC simply ignores it.
+>
+> **Community consensus (2024):** No confirmed BIOS mod enables working OS-level ECC on MR9A or any similar Chinese X99 board. The [0x8008/mr9a](https://github.com/0x8008/mr9a) repo has Turbo Unlock, undervolting, and ReBAR mods — no ECC patches. Win-Raid forum users report the same "ECC is disabled" outcome even after `setup_var` attempts. Commercial patched BIOSes claim ECC but provide no verifiable evidence.
+>
+> **Conclusion:** ECC hardware is present in both DIMMs and CPU IMC. The X99MA011 MRC has a firmware defect where it unconditionally configures the IMC with ECC off, regardless of the NVAR setting. **This is a known, unfixable limitation of this BIOS revision.** If ECC is required, use a proper server platform (e.g., Intel S2600 series or Supermicro X10 with IPMI).
 
-> **BIOS ECC Toggle (Live ROM — X99MA011):** The Live BIOS IFR (Setup DXE) does contain an **ECC Support** option:
-> - Menu path: **Chipset → Memory RAS Configuration → ECC Support**
+> **BIOS ECC Toggle (Live ROM — X99MA011):** The Live BIOS IFR (Setup DXE) contains an **ECC Support** option:
+> - Menu path: **IntelRCSetup → iMC (GOTO) → Memory Configuration → ECC Support**
+>   - "iMC" in the breadcrumb is a GOTO item named "Integrated Memory Controller (iMC)" that navigates into the "Memory Configuration" form (FormId `0x0004`) — there is no separate "iMC" form
 > - IFR: `IntelSetup` VarStore (GUID `EC87D643-EBA4-4BB5-A1E5-3F3E36B20DA9`), **VarOffset `0x11ff`**, DataType UINT8
 > - Options: **Disable** (0x00), **Enable** (0x01), **Auto** (0x02, factory default)
-> - Current NVAR value on `mra9`: `0x02` ("Auto" — the hardware default)
-> - To attempt enabling via UEFI shell: `setup_var.efi 0x11ff 0x01`
-> - ⚠️ **Worth testing:** Because memory is controlled by the CPU IMC (not the PCH), this setting tells the BIOS MRC whether to configure ECC in the IMC during memory training. Setting `0x01` (Enable) on the next UEFI shell boot may activate hardware ECC. If successful, `/sys/devices/system/edac/mc/mc0/` will appear and `edac-util` will report a working memory controller. **Untested on `mra9` — requires UEFI shell reboot.** To revert: `setup_var.efi 0x11ff 0x02` (Auto).
+> - Current NVAR value on `mra9`: `0x01` (patched via SPI flash — was `0x02`, MRC ignores it either way)
+> - ❌ **Setting this value has no effect** — the MRC in X99MA011 hardcodes ECC off; both UI changes and direct SPI NVAR patches are ignored during POST.
 
 > **Speed note:** On `mra9`, the Samsung M393A4K40DB2-CVF (DDR4-2933) modules run at **1866 MT/s** — the board enforces JEDEC sub-profiles and does not support XMP. This is normal and expected.
 
@@ -278,7 +291,7 @@ An independent custom BIOS by **iEngineer** is available as an alternative to th
 | **CPU fan (4-pin) required to boot** | **Critical** | Board will NOT initialize BIOS/CPU without a 4-pin fan on CPU_FAN1 — hard firmware requirement |
 | Temperature sensor reads 120 °C or random values | High | Hardware defect in v1.0; do not use for alerts/automation |
 | USB 3.0 instability under heavy load | High | Can cause system lockups; improved in v2.0 |
-| No ECC error correction despite ECC DIMMs | Medium | BIOS default (Auto) leaves ECC disabled in CPU IMC. May be fixable: `setup_var.efi 0x11ff 0x01` in UEFI shell — **untested** |
+| No ECC error correction despite ECC DIMMs | **Critical** | **Permanent BIOS defect — no known fix.** X99MA011 MRC hardcodes ECC off. UI changes silently discarded; direct SPI NVAR patch (`0x801495=0x01`) persists but MRC ignores it; MCMTR register at `ff:13.0+0x7c` is read-only post-boot. Community consensus (2024): no working ECC mod exists for any Chinese X99 board. If ECC is required, use a proper server board. |
 | No TPM 2.0 header | Medium | Windows 11 TPM requirement cannot be met natively |
 | No POST debug display | Low | Must use speaker beep codes for boot failures |
 | Stock BIOS lacks C-state controls | Medium | Patched Huananzhi BIOS exposes and allows disabling C6 |
@@ -307,7 +320,7 @@ An independent custom BIOS by **iEngineer** is available as an alternative to th
 
 - Boots and runs all major Linux distributions without issues
 - `lm-sensors` will report no usable temperature or fan data (broken hardware sensors)
-- `edac-util` will show no ECC support currently — BIOS default (Auto) leaves ECC disabled in IMC; may be enabled via `setup_var.efi 0x11ff 0x01` in UEFI shell (untested)
+- `edac-util` will show no ECC support — **permanent BIOS limitation**: X99MA011 MRC hardcodes ECC off; all software override approaches exhausted (see ECC Caveat note)
 - USB 3.0 issues may manifest as `xhci_hcd` errors in `dmesg` — avoid heavy USB 3.0 use on v1.0
 - Sleep (S3): unreliable on stock BIOS; test after patched Huananzhi BIOS flash
 - No special kernel parameters required beyond VT-d if using virtualization:
@@ -567,7 +580,7 @@ Top-level tabs: **Main → Advanced → Chipset → Boot → Security → Save &
 - **Memory RAS Configuration**
   - **ECC Support** — Disable / Enable / **Auto** (default)
     - IFR: `IntelSetup` VarOffset `0x11ff` (UINT8); Auto=0x02, Enable=0x01, Disable=0x00
-    - ⚠️ **Potentially functional** — memory is CPU IMC-attached, not PCH-controlled; this setting configures the BIOS MRC to enable/disable ECC in the IMC. Setting to Enable (`0x01`) via UEFI shell **may activate ECC** — untested. To test: boot UEFI shell, run `setup_var.efi 0x11ff 0x01`, reboot, check `dmesg | grep edac` and `ls /sys/devices/system/edac/mc/`.
+    - ❌ **NON-FUNCTIONAL** — setting this value has no effect. The X99MA011 MRC hardcodes ECC off regardless of NVAR. Both UI changes and direct SPI patching have been tried and confirmed to be ignored during POST (see ECC Caveat note).
 - **PCH Configuration** — PCH-level settings (USB, SATA, PCH PCIe ports, etc.)
 
 #### Boot
