@@ -86,6 +86,14 @@ Confirmed hardware as of live system inspection (Ubuntu 24.04.4 LTS live via Ven
 
 > **ECC Caveat:** Linux `dmesg` / `edac-util` will report no ECC support. This is expected — the EDAC `sbridge` driver loads, finds the DIMMs, but exits with `"ECC is disabled"` and registers no memory controller in `/sys/devices/system/edac/mc/`. Neither `rasdaemon` nor `mcelog` is active. The Q87 desktop PCH does not enable ECC error correction logic despite the CPU IMC and DIMMs being fully ECC-capable.
 
+> **BIOS ECC Toggle (Live ROM — X99MA011):** The Live BIOS IFR (Setup DXE) does contain an **ECC Support** option:
+> - Menu path: **Chipset → Memory RAS Configuration → ECC Support**
+> - IFR: `IntelSetup` VarStore (GUID `EC87D643-EBA4-4BB5-A1E5-3F3E36B20DA9`), **VarOffset `0x11ff`**, DataType UINT8
+> - Options: **Disable** (0x00), **Enable** (0x01), **Auto** (0x02, factory default)
+> - Current NVAR value on `mra9`: `0x02` ("Auto" — the hardware default)
+> - To attempt enabling via UEFI shell: `setup_var.efi 0x11ff 0x01`
+> - ⚠️ **Almost certainly a no-op:** The option was added for server chipsets that support ECC at silicon level. On this board's Q87 desktop PCH, the IMC ECC path is disabled in silicon; setting the variable to `0x01` will **not** activate hardware error correction. Verified: `EDAC sbridge` still reports ECC disabled even with the setting at Auto (0x02).
+
 > **Speed note:** On `mra9`, the Samsung M393A4K40DB2-CVF (DDR4-2933) modules run at **1866 MT/s** — the board enforces JEDEC sub-profiles and does not support XMP. This is normal and expected.
 
 ## Storage
@@ -556,6 +564,10 @@ Top-level tabs: **Main → Advanced → Chipset → Boot → Security → Save &
     - Interrupt Remapping
   - IIO PCIe Root Port settings (per-port enable/disable, speed, ASPM)
 - **Memory Map** — memory mapping configuration
+- **Memory RAS Configuration**
+  - **ECC Support** — Disable / Enable / **Auto** (default)
+    - IFR: `IntelSetup` VarOffset `0x11ff` (UINT8); Auto=0x02, Enable=0x01, Disable=0x00
+    - ⚠️ Setting has no effect on this board — Q87 silicon ignores it; ECC correction remains off regardless
 - **PCH Configuration** — PCH-level settings (USB, SATA, PCH PCIe ports, etc.)
 
 #### Boot
