@@ -25,9 +25,18 @@ The **Huananzhi H12D-8D** (Ver2.0) is a **single-socket** AMD EPYC ATX server ma
 | OS support          | Windows, Linux                             |
 | Approx. price (CN)  | ¥2188 (no BMC) / ¥2388 (with BMC module)   |
 
+## Source Manual
+
+The official bilingual (Chinese primary) manual is included in this skill directory:
+**`H12D-8DManual.pdf`** — 20 MB, use `fitz` (PyMuPDF) to extract text/images if needed.
+
+Pages (0-indexed): 0–1 cover, 2 specs, **3 board layout/rear-IO (Figs 1-1 to 1-4)**, **4 connectors (Figs 2-1 to 2-3)**, **5 power/fan (Figs 2-4 to 2-7)**, 6+ BIOS/changelog.
+
 ## Board Diagrams
 
 All diagrams are rendered from the official Huananzhi H12D-8D bilingual manual (Chinese primary).
+Images were extracted with PyMuPDF at 150 DPI and Chinese labels translated to English using PIL overlays.
+See the `document-manipulation` skill for the full translation technique.
 
 ### Board Overview & Rear I/O
 
