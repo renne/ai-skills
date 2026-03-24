@@ -363,6 +363,121 @@ Results are ranked by `relevance × confidence`. Relevance is computed from doma
 
 ---
 
+## Publishing Pre-built Images to GitHub Container Registry (ghcr.io)
+
+The upstream `mozilla-ai/cq` repo has **no pre-built Docker images** — `make compose-up` always builds from source. To avoid building on every machine, publish images to `ghcr.io` from a fork.
+
+### 1. Fork the repo
+
+```bash
+gh repo fork mozilla-ai/cq --clone
+cd cq
+```
+
+### 2. Create `.github/workflows/docker-publish.yml`
+
+```yaml
+name: Docker Publish
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: ${{ github.repository_owner }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        include:
+          - context: ./team-api
+            image: ghcr.io/${{ github.repository_owner }}/cq-team-api
+          - context: ./team-ui
+            image: ghcr.io/${{ github.repository_owner }}/cq-team-ui
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ matrix.image }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+```
+
+### 3. Push — images are published automatically
+
+After pushing to `main`, images are available at:
+- `ghcr.io/<owner>/cq-team-api:main`
+- `ghcr.io/<owner>/cq-team-ui:main`
+
+### 4. Update `docker-compose.yml` to use pre-built images
+
+Replace `build:` directives with `image:` references:
+
+```yaml
+services:
+  cq-team-api:
+    image: ghcr.io/<owner>/cq-team-api:main
+    ports:
+      - "8742:8742"
+    volumes:
+      - cq-data:/data
+    environment:
+      - CQ_DB_PATH=/data/team.db
+      - CQ_JWT_SECRET=${CQ_JWT_SECRET:?Set CQ_JWT_SECRET}
+
+  cq-team-ui:
+    image: ghcr.io/<owner>/cq-team-ui:main
+    ports:
+      - "3000:3000"
+    depends_on:
+      - cq-team-api
+
+volumes:
+  cq-data:
+```
+
+Then deploying anywhere requires only `docker-compose.yml` and `CQ_JWT_SECRET` — no source clone needed.
+
+### 5. Make packages public (optional)
+
+By default ghcr.io packages inherit the repo's visibility. To make images publicly pullable without authentication:
+- Go to `https://github.com/<owner>/cq-team-api` (the package page)
+- **Package settings → Change visibility → Public**
+- Repeat for `cq-team-ui`
+
+---
+
 ## Known Quirks and Limitations
 
 ⚠️ **`CQ_TEAM_API_KEY` is documented but not yet implemented** — it appears in the README and DEVELOPMENT.md but authentication via this key is tracked in issues [#63](https://github.com/mozilla-ai/cq/issues/63) and [#80](https://github.com/mozilla-ai/cq/issues/80). Do not rely on it for access control today.
