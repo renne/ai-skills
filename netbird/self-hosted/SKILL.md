@@ -305,6 +305,35 @@ Or set it in the client configuration file (`/etc/netbird/config.json`):
 | Authentication failing | IdP logs, `AuthIssuer` and `AuthAudience` values in `management.json` |
 | Peers not appearing in dashboard | Management container logs (`docker compose logs management`) |
 
+### ⚠️ Dashboard returns 404 until Ctrl+Shift+R (hard refresh)
+
+**Symptom:** Opening `https://netbird.example.com/` in a browser shows HTTP 404. After a hard refresh (Ctrl+Shift+R / Cmd+Shift+R), the dashboard loads normally. Happens repeatedly across sessions.
+
+**Root cause:** The NetBird dashboard container serves the Next.js frontend via an internal **nginx**. nginx returns 404 responses **without a `Cache-Control` header**, while 200 responses carry `no-store, no-cache, must-revalidate`. When the stack briefly goes down (e.g. Watchtower auto-update, `docker compose up -d`), nginx returns a 404. The browser caches that 404 (heuristic caching based on the `etag` header). On every subsequent visit the browser serves the cached 404 — until a hard refresh, which sends `Cache-Control: no-cache` in the request and bypasses the browser cache.
+
+**Fix:** Add a Traefik headers middleware to force `Cache-Control: no-store` on all responses from the dashboard router. This prevents the browser from ever caching a transient 404.
+
+Via Docker Compose labels on the `dashboard` service:
+
+```yaml
+labels:
+  - "traefik.http.middlewares.netbird-nocache.headers.customResponseHeaders.Cache-Control=no-store, no-cache, must-revalidate"
+  - "traefik.http.routers.netbird-dashboard.middlewares=netbird-nocache"  # append to existing list
+```
+
+Or via a Traefik dynamic config file:
+
+```yaml
+http:
+  middlewares:
+    netbird-nocache:
+      headers:
+        customResponseHeaders:
+          Cache-Control: "no-store, no-cache, must-revalidate"
+```
+
+> ⚠️ Traefik's `customResponseHeaders` **overwrites** any existing `Cache-Control` header from the upstream. Verify after applying that the 200 response still has the expected value.
+
 ```bash
 # Tail logs for all services
 docker compose logs -f
