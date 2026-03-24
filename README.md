@@ -178,6 +178,12 @@ Skills from [VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesom
 | [Entities & Device Registry (Entity IDs, States, Renaming, Disabling, Device Management)](home-assistant/entities/SKILL.md) | https://www.home-assistant.io/docs/configuration/customizing-devices/ |
 | [MCP Server (ha-mcp: AI control via Claude Desktop, Claude Code, VS Code, Cursor, and 15+ clients)](home-assistant/ha-mcp/SKILL.md) | https://github.com/homeassistant-ai/ha-mcp |
 
+### Tools
+
+| Skill | Source |
+|-------|--------|
+| [gh-issue (Create, search and manage GitHub issues via gh CLI; OAuth device flow, classic vs fine-grained PAT, WSL2 workaround, --web URL length limit)](tools/gh-issue/SKILL.md) | https://cli.github.com/manual/gh_issue_create |
+
 ### Hardware
 
 | Skill | Source |
