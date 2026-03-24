@@ -311,7 +311,13 @@ Or set it in the client configuration file (`/etc/netbird/config.json`):
 
 **Root cause:** The NetBird dashboard container serves the Next.js frontend via an internal **nginx**. nginx returns 404 responses **without a `Cache-Control` header**, while 200 responses carry `no-store, no-cache, must-revalidate`. When the stack briefly goes down (e.g. Watchtower auto-update, `docker compose up -d`), nginx returns a 404. The browser caches that 404 (heuristic caching based on the `etag` header). On every subsequent visit the browser serves the cached 404 — until a hard refresh, which sends `Cache-Control: no-cache` in the request and bypasses the browser cache.
 
-**Fix:** Add a Traefik headers middleware to force `Cache-Control: no-store` on all responses from the dashboard router. This prevents the browser from ever caching a transient 404.
+**Important:** Ctrl+Shift+R (hard refresh) bypasses the cache for that single load but does **not delete** the cached 404 from the browser's cache store. After the hard refresh returns 200 (which itself is `no-store`, so not stored), the next normal navigation hits the browser cache again and finds the old 404 entry — showing 404 indefinitely. The service itself may be running fine the entire time.
+
+**Immediate workaround** (clears the stuck 404 from the browser cache):
+- Chrome/Edge: DevTools → Application → Storage → **Clear site data**
+- Or: browser Settings → Privacy → Clear browsing data → filter to the NetBird domain
+
+**Permanent fix:** Add a Traefik headers middleware to force `Cache-Control: no-store` on all responses from the dashboard router. This prevents the browser from ever caching a transient 404.
 
 Via Docker Compose labels on the `dashboard` service:
 
