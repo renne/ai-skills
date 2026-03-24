@@ -186,6 +186,7 @@ Skills from [VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesom
 |-------|--------|
 | [gh-issue (Create, search and manage GitHub issues via gh CLI; OAuth device flow, classic vs fine-grained PAT, WSL2 workaround, --web URL length limit)](tools/gh-issue/SKILL.md) | https://cli.github.com/manual/gh_issue_create |
 | [glab CLI (Authentication, issues, MRs, notes on self-hosted GitLab; WSL2 keyring workaround, -R flag usage)](tools/glab/SKILL.md) | https://gitlab.com/gitlab-org/cli |
+| [cq (mozilla-ai/cq shared agent knowledge commons: install for Claude Code/OpenCode, deploy team API via Docker Compose, MCP tools query/propose/confirm/flag/reflect/status, agent protocol)](tools/cq/SKILL.md) | https://github.com/mozilla-ai/cq |
 
 ### Hardware
 
