@@ -36,6 +36,7 @@ Each skill is a directory containing a `SKILL.md` file following the [VS Code Ag
 | [Moodle App Coding Style](moodle/app-coding-style/SKILL.md) | https://moodledev.io/general/development/policies/codingstyle-moodleapp |
 | [Moodle App Development Guide](moodle/app-development-guide/SKILL.md) | https://moodledev.io/general/app/development/development-guide |
 | [Moodle App Plugins Development Guide](moodle/app-plugins-development-guide/SKILL.md) | https://moodledev.io/general/app/development/plugins-development-guide |
+| [HVP→H5P Migration (tool_migratehvp2h5p, c=0 vs c=1 permission bug, DB diagnostics, re-migration fix)](moodle/hvp-h5p-migration/SKILL.md) | https://moodle.org/plugins/tool_migratehvp2h5p |
 
 ### Nextcloud
 
@@ -184,6 +185,7 @@ Skills from [VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesom
 | Skill | Source |
 |-------|--------|
 | [gh-issue (Create, search and manage GitHub issues via gh CLI; OAuth device flow, classic vs fine-grained PAT, WSL2 workaround, --web URL length limit)](tools/gh-issue/SKILL.md) | https://cli.github.com/manual/gh_issue_create |
+| [glab CLI (Authentication, issues, MRs, notes on self-hosted GitLab; WSL2 keyring workaround, -R flag usage)](tools/glab/SKILL.md) | https://gitlab.com/gitlab-org/cli |
 
 ### Hardware
 
