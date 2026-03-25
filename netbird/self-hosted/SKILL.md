@@ -317,7 +317,14 @@ Or set it in the client configuration file (`/etc/netbird/config.json`):
 - Chrome/Edge: DevTools → Application → Storage → **Clear site data**
 - Or: browser Settings → Privacy → Clear browsing data → filter to the NetBird domain
 
-**Permanent fix:** Add a Traefik headers middleware to force `Cache-Control: no-store` on all responses from the dashboard router. This prevents the browser from ever caching a transient 404.
+**True root cause (nginx):** The dashboard container's internal nginx config (`docker/default.conf`) uses `add_header Cache-Control "no-store, ..." ` **without the `always` keyword** in both `location /` and `location = /404.html`. Per nginx semantics, `add_header` without `always` only applies to 2xx/3xx responses — headers are silently dropped on 4xx/5xx. This is an upstream bug tracked in **[netbirdio/dashboard PR #549](https://github.com/netbirdio/dashboard/pull/549)** ("Add CSP headers to nginx configuration"), which already contains the fix (`always` added to both `Cache-Control` lines). Once PR #549 is merged and Watchtower pulls the new image, the bug is resolved automatically.
+
+**Correct nginx fix (from PR #549):**
+```nginx
+add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" always;
+```
+
+**Traefik workaround** (while waiting for upstream PR to merge): Add a Traefik headers middleware to force `Cache-Control: no-store` on all responses from the dashboard router. This prevents the browser from ever caching a transient 404.
 
 Via Docker Compose labels on the `dashboard` service:
 
