@@ -630,15 +630,34 @@ Management requires a valid, reachable IdP config at startup — there is no way
 | Approach | Notes |
 |---|---|
 | **Use embedded Dex with local auth** | ✅ Recommended. No circular dep. Simplest. |
-| **IdP has a public endpoint** | ✅ Works if IdP is internet-reachable (e.g., Nextcloud is already public). Management reaches it via internet, not overlay. Watch the `extra_hosts` routing — see below. |
+| **IdP with a truly public endpoint** | Only works if the IdP backend is reachable WITHOUT going through the overlay. A domain with a public DNS record is not sufficient if the reverse proxy serving that domain routes to a backend via the overlay — see below. |
 | **Standalone external Dex** | Dex in a separate container starts before management; Dex federates to your IdP. Breaks circular dep, but the NetBird dashboard hides the "Identity Providers" UI tab (only shown for EmbeddedIdP). |
 | **Two-phase startup script** | Documented below. Fragile, abandoned — keep as historical reference only. |
 
-**Key insight for publicly-reachable IdPs:** If the IdP is accessible via the internet (e.g., `https://bartschnet.de`), the management server on vps1 can reach it directly without going through the overlay. The circular dependency only exists if the IdP hostname resolves to an IP that is **only reachable via the overlay**. If `extra_hosts` or `/etc/hosts` routes the IdP hostname to the overlay IP (e.g., `10.0.0.29`), that overrides the public route — remove such entries from the `netbird-server` service when using a publicly-reachable IdP.
+**⚠️ "Publicly reachable domain" does NOT mean "overlay-independent":**
+
+A domain like `https://idp.example.de` may resolve to the VPS public IP and be reachable from the internet, yet still be fundamentally overlay-dependent if the architecture is:
+
+```
+Internet → VPS (public IP) → Traefik → [NetBird overlay] → Docker host → Nextcloud
+```
+
+In this case, Traefik on the VPS proxies requests to a backend on the Docker host via the overlay network. When NetBird management tries to reach `https://idp.example.de/.well-known/openid-configuration` at startup:
+
+1. The request hits Traefik on the same VPS
+2. Traefik forwards to the Docker host **via the overlay**
+3. The overlay is not yet up (management hasn't started → no peers)
+4. The request fails → deadlock
+
+The circular dependency is complete. **Using the public URL does not help** when the reverse proxy backend itself depends on the overlay.
+
+The only escape is either:
+- The IdP backend is reachable by the VPS via a route that does **not** involve the overlay (e.g., direct LAN, separate VPN, or the IdP runs on the VPS itself)
+- Use embedded Dex with local auth (no external IdP at startup)
 
 ### ⚠️ Dex connector startup race condition (WireGuard route deadlock)
 
-> **Historical note:** The two-phase startup script below was an attempt to work around the circular dependency above. It was ultimately abandoned because the problem is architectural, not a timing issue. **For new setups, use embedded Dex with local auth or an IdP with a public endpoint.**
+> **Historical note:** The two-phase startup script below was an attempt to work around the circular dependency above. It was ultimately abandoned because the problem is architectural, not a timing issue. **For new setups, use embedded Dex with local auth.**
 
 **Symptom:** After recreating the `netbird-server` container, Dex logs show:
 
