@@ -402,6 +402,42 @@ Or set it in the client configuration file (`/etc/netbird/config.json`):
 | Authentication failing | IdP logs, `AuthIssuer` and `AuthAudience` values in `management.json` |
 | Peers not appearing in dashboard | Management container logs (`docker compose logs management`) |
 
+### ⚠️ env_file changes don't take effect (stale container env vars)
+
+**Symptom:** You updated an `env_file` (e.g., `dashboard.env`) on disk, ran `docker compose up -d`, and the container still uses the old values. `docker inspect` shows stale vars.
+
+**Root cause:** Docker bakes environment variables **at container creation time**. If the container already exists and the image hasn't changed, `docker compose up -d` does NOT recreate it — it leaves the existing container running with its original env vars.
+
+**Fix:** Force recreation:
+```bash
+docker compose up -d --force-recreate dashboard
+```
+
+Verify the new values are live:
+```bash
+docker inspect netbird-dashboard | grep -A5 AUTH_AUTHORITY
+```
+
+This is especially important after changing `AUTH_AUTHORITY`, `AUTH_CLIENT_ID`, or `USE_AUTH0` in `dashboard.env`.
+
+### ⚠️ Volume name: `netbird_netbird_data` (double project name)
+
+When the Docker Compose project is named `netbird` (default from directory name) and the volume is defined as `netbird_data:` in the YAML, Docker names the actual volume `netbird_netbird_data`. The host path is:
+
+```
+/var/lib/docker/volumes/netbird_netbird_data/_data/
+```
+
+This contains `idp.db` (Dex embedded IdP database) and `store.db` (NetBird management). Use this path for direct sqlite3 access.
+
+### ⚠️ Dashboard redirects to the wrong IdP (stale OIDC config in browser)
+
+**Symptom:** Dashboard redirects to an old OIDC URL (e.g., `https://bartschnet.de/apps/oidc/authorize`) even after updating `dashboard.env`. Occurs even in private/incognito windows after cache clearing.
+
+**Root cause:** Dashboard container was still using stale env vars baked in at creation time (see above). The browser is correctly following the JS config served by the container.
+
+**Fix:** `docker compose up -d --force-recreate dashboard`, then hard-refresh (`Ctrl+Shift+R`).
+
 ### ⚠️ Dashboard returns 404 until Ctrl+Shift+R (hard refresh)
 
 **Symptom:** Opening `https://netbird.example.com/` in a browser shows HTTP 404. After a hard refresh (Ctrl+Shift+R / Cmd+Shift+R), the dashboard loads normally. Happens repeatedly across sessions.
@@ -570,7 +606,37 @@ Set `server.auth.localAuthDisabled: false` (default) in `config.yaml`. The "Emai
 - Create a **confidential** client (not public) so Dex can use a `client_secret`
 - See the Nextcloud OIDC IdP skill for the correct `occ oidc:create` syntax
 
+### ⚠️ Fundamental Circular Dependency: IdP Behind the Overlay Network
+
+**The problem:** If your external IdP (e.g., Nextcloud) is only reachable *through* the NetBird overlay (e.g., on a Docker host accessible via a subnet router peer), management cannot start:
+
+1. Management/Dex tries to fetch `/.well-known/openid-configuration` from the IdP at startup
+2. The NetBird overlay is not yet up (no peers registered yet)
+3. Management/Dex fails to reach the IdP → startup crash or boot loop
+
+**This is a known open issue:** [netbirdio/netbird#5084](https://github.com/netbirdio/netbird/issues/5084) (filed Jan 2026, `triage-needed`, no upstream fix yet). A `--skip-oidc-startup-check` flag was requested but not implemented as of early 2026.
+
+**Removing the `HttpConfig` block to bypass the check causes a nil pointer panic:**
+```
+panic: runtime error: invalid memory address or nil pointer dereference
+  github.com/netbirdio/netbird/management/cmd.loadMgmtConfig
+```
+Management requires a valid, reachable IdP config at startup — there is no way around this without a code change.
+
+**Workaround options (no perfect solution):**
+
+| Approach | Notes |
+|---|---|
+| **Use embedded Dex with local auth** | ✅ Recommended. No circular dep. Simplest. |
+| **IdP has a public endpoint** | ✅ Works if IdP is internet-reachable (e.g., Nextcloud is already public). Management reaches it via internet, not overlay. Watch the `extra_hosts` routing — see below. |
+| **Standalone external Dex** | Dex in a separate container starts before management; Dex federates to your IdP. Breaks circular dep, but the NetBird dashboard hides the "Identity Providers" UI tab (only shown for EmbeddedIdP). |
+| **Two-phase startup script** | Documented below. Fragile, abandoned — keep as historical reference only. |
+
+**Key insight for publicly-reachable IdPs:** If the IdP is accessible via the internet (e.g., `https://bartschnet.de`), the management server on vps1 can reach it directly without going through the overlay. The circular dependency only exists if the IdP hostname resolves to an IP that is **only reachable via the overlay**. If `extra_hosts` or `/etc/hosts` routes the IdP hostname to the overlay IP (e.g., `10.0.0.29`), that overrides the public route — remove such entries from the `netbird-server` service when using a publicly-reachable IdP.
+
 ### ⚠️ Dex connector startup race condition (WireGuard route deadlock)
+
+> **Historical note:** The two-phase startup script below was an attempt to work around the circular dependency above. It was ultimately abandoned because the problem is architectural, not a timing issue. **For new setups, use embedded Dex with local auth or an IdP with a public endpoint.**
 
 **Symptom:** After recreating the `netbird-server` container, Dex logs show:
 
@@ -596,14 +662,12 @@ A `/dev/tcp` loop checking TCP connectivity to the IdP before starting the serve
 - TCP never works
 - Loop never exits
 
-**Correct fix: two-phase startup script**
+**Two-phase startup script (historical — abandoned):**
 
 1. Start management server in **background** → daemon reconnects → WireGuard routes populate
 2. Wait for TCP to the IdP host (proves route is live)
 3. Gracefully stop background server
 4. `exec` server again → Dex initializes connector with route available
-
-**`start-server.sh`:**
 
 ```bash
 #!/usr/bin/bash
@@ -628,35 +692,6 @@ exec /go/bin/netbird-server --config /etc/netbird/config.yaml
 **`/dev/tcp` requires bash:** `/dev/tcp` is a bash builtin, not available in `sh`. The shebang and entrypoint must use `bash`.
 
 **Prerequisites in container:** The `netbirdio/netbird-server` image is Ubuntu 24.04 LTS. `/usr/bin/bash` and `python3` are available.
-
-**Docker Compose integration:**
-
-```yaml
-services:
-  netbird-server:
-    volumes:
-      - ./start-server.sh:/start-server.sh:ro
-      # ... other volumes ...
-    entrypoint: ["/start-server.sh"]
-    # Remove any CMD — the script ends with exec, replacing itself
-```
-
-After updating `docker-compose.yml`, recreate the container:
-```bash
-docker compose up -d --force-recreate netbird-server
-docker logs -f netbird-server
-```
-
-Expected log sequence:
-```
-[start-server] Phase 1: server running in background (PID=12)
-[start-server] Waiting for TCP connectivity to IdP at 10.0.0.29:443...
-[start-server] Route not ready yet, sleeping 2s...
-[start-server] Route ready. Stopping background server...
-[start-server] Phase 2: restarting server so Dex can initialize connectors
-```
-
-Absence of `failed to create connector` in the second start confirms success.
 
 ---
 
