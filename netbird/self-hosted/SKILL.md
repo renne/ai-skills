@@ -195,20 +195,33 @@ Since v0.62, the combined `netbird-server` image uses a single **`config.yaml`**
 
 ```yaml
 server:
-  domain: netbird.example.com
+  listenAddress: ":80"
+  exposedAddress: "https://netbird.example.com:443"
+
+  # Shared secret used for peer (client agent) authentication — separate from user OIDC auth
+  authSecret: "<random-secret>"
+
   auth:
-    issuer: https://netbird.example.com/issuer   # must point to embedded Dex — do not change
-    audience: netbird-client
+    issuer: "https://netbird.example.com/oauth2"  # embedded Dex endpoint — do not change
+    signKeyRefreshEnabled: true                    # management dynamically fetches JWKS from Dex
+    # Redirect URIs must exactly match dashboard.env AUTH_REDIRECT_URI / AUTH_SILENT_REDIRECT_URI
+    # If the dashboard moves to a different hostname, update these URIs accordingly
+    dashboardRedirectURIs:
+      - "https://netbird.example.com/nb-auth"
+      - "https://netbird.example.com/nb-silent-auth"
+    cliRedirectURIs:
+      - "http://localhost:53000/"
+
   store:
-    encryptionKey: <random-32-byte-hex>          # required — keep a secure backup
-relay:
-  address: netbird.example.com:33080
-  secret: <random-secret>
+    engine: "sqlite"                               # or "postgres" for HA deployments
+    encryptionKey: "<random-32-byte-base64>"       # required — keep a secure backup
 ```
 
-> **Important:** `server.auth.issuer` must always point to the **embedded Dex** endpoint, even when federating an external IdP. Direct external-OIDC configuration is not supported in the combined image.
+> **Important:** `server.auth.issuer` must always point to the **embedded Dex** endpoint (`/oauth2` path), even when federating an external IdP via a Dex connector. Direct external-OIDC configuration is not supported in the combined image.
 
 > **Encryption key backup:** If `server.store.encryptionKey` is lost, audit-log entries will show `unknown` for user names/emails. Back this value up securely.
+
+> **authSecret vs OIDC:** These are two independent auth mechanisms. `authSecret` authenticates peer agents (client daemons) during their gRPC management calls. OIDC JWTs authenticate human users via the dashboard. Both go through the management API on different endpoints.
 
 ---
 
@@ -265,16 +278,57 @@ Environment variables for the web dashboard:
 ```env
 NETBIRD_MGMT_API_ENDPOINT=https://netbird.example.com:443
 NETBIRD_MGMT_GRPC_API_ENDPOINT=https://netbird.example.com:443
-AUTH_AUDIENCE=netbird-client
+# OIDC client config — matches embedded Dex (v0.62+)
 AUTH_CLIENT_ID=netbird-dashboard
-AUTH_AUTHORITY=https://netbird.example.com/realms/netbird
+AUTH_CLIENT_SECRET=                                  # empty — dashboard is a public OIDC client
+AUTH_AUDIENCE=netbird-dashboard
+AUTH_AUTHORITY=https://netbird.example.com/oauth2    # embedded Dex; NOT /realms/... or /issuer
 USE_AUTH0=false
-AUTH_SUPPORTED_SCOPES="openid profile email offline_access api groups"
+AUTH_SUPPORTED_SCOPES="openid profile email groups"
+AUTH_REDIRECT_URI=/nb-auth                           # must match config.yaml dashboardRedirectURIs
+AUTH_SILENT_REDIRECT_URI=/nb-silent-auth             # must match config.yaml dashboardRedirectURIs
 ```
+
+> **v0.62 change:** In v0.62+ with embedded Dex the auth authority path is `/oauth2`, not `/issuer` or a Zitadel/Keycloak realm path. `AUTH_AUDIENCE` matches `AUTH_CLIENT_ID` for embedded Dex (both `netbird-dashboard`).
+
+> **Redirect URI coupling:** `AUTH_REDIRECT_URI` and `AUTH_SILENT_REDIRECT_URI` are relative paths resolved against the dashboard's origin hostname. If the dashboard container moves to a different host, these values must change **and** `config.yaml:server.auth.dashboardRedirectURIs` must be updated to match.
 
 ---
 
-## Identity Provider (IdP) Integration
+## Authentication Architecture
+
+NetBird uses **two independent authentication mechanisms** — one for human users (via the dashboard) and one for peer agents (client daemons).
+
+### User authentication (OIDC)
+
+The embedded Dex OIDC server (served at `https://<domain>/oauth2`) is the identity provider for both the dashboard and the management API:
+
+1. The browser opens the dashboard (nginx serving a Next.js app).
+2. The dashboard JS initiates an OIDC authorization code flow to Dex (`/oauth2/auth`).
+3. Dex authenticates the user — either directly or via a federated connector (e.g. Nextcloud, Authentik).
+4. Dex issues a JWT; the browser is redirected back to the dashboard (`/nb-auth` or `/nb-silent-auth`).
+5. The dashboard uses the JWT as a Bearer token in every `https://<domain>/api/...` call.
+6. The management API validates the JWT signature against Dex's JWKS (`signKeyRefreshEnabled: true`).
+
+**Key implication:** The OIDC flow always redirects through the domain where the management server and Dex live. Even if the dashboard were hosted on a different domain, the OIDC redirect URI must be registered in `config.yaml:server.auth.dashboardRedirectURIs` *for that dashboard hostname* — and Dex will redirect the browser back there after login.
+
+### Peer authentication (authSecret)
+
+Peer agents (the `netbird` daemon running on each device) authenticate to the management gRPC endpoint using the `server.authSecret` from `config.yaml`. This is a symmetric shared secret, not OIDC. Setup keys (used for initial enrollment) are separate and managed via the management API.
+
+### Traefik path routing on a single hostname
+
+All NetBird traffic on port 443 can share one hostname by using path-prefix routing with different priorities:
+
+| Router | Priority | Paths | Backend | Protocol |
+|--------|----------|-------|---------|----------|
+| gRPC   | 100 | `/signalexchange.SignalExchange/`, `/management.ManagementService/`, `/management.ProxyService/` | `netbird-server:80` | h2c |
+| Backend | 100 | `/relay`, `/ws-proxy/`, `/api`, `/oauth2` | `netbird-server:80` | HTTP |
+| Dashboard | 1 (catch-all) | everything else | `netbird-dashboard:80` | HTTP |
+
+The dashboard router's priority 1 means any more-specific rule (priority 100) wins, letting signal/management/relay/API traffic bypass the dashboard container entirely while all unmatched paths serve the Next.js UI.
+
+
 
 NetBird supports any OIDC-compliant identity provider. The quickstart uses **Zitadel** (bundled). For production, you can switch to an external IdP.
 
