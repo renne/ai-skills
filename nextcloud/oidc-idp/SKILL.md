@@ -261,6 +261,27 @@ curl -s https://netbird.example.de/oauth2/auth?client_id=netbird-dashboard\&resp
 
 Nextcloud tokens never include `email_verified: true`. Without this flag, Dex will reject every Nextcloud login.
 
+### ⚠️ Startup race condition when IdP is on internal LAN
+
+If Nextcloud is on a private LAN reachable only via NetBird's WireGuard overlay (policy routing table 7120), Dex will fail to initialize the connector at startup with:
+
+```
+ERRO failed to create connector nextcloud: dial tcp 10.0.0.29:443: connect: no route to host
+```
+
+The WireGuard routes in table 7120 are only added after the NetBird daemon reconnects peers — which requires the management server to be running. This creates a chicken-and-egg problem.
+
+**Fix:** Use a two-phase startup script. See the [NetBird self-hosted skill](../self-hosted/SKILL.md) → "Dex connector startup race condition" section for the full script and Docker Compose integration.
+
+Also add `extra_hosts` to bypass DNS split-brain (public DNS may return IPv6; internal IP is IPv4):
+
+```yaml
+services:
+  netbird-server:
+    extra_hosts:
+      - "nextcloud.example.de:10.0.0.29"
+```
+
 ### Dex connector table schema
 
 ```

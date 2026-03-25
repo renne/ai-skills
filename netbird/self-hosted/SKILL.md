@@ -414,17 +414,33 @@ Recommended pattern for infrastructure hosts:
 2. add public fallback resolvers after it on the host
 3. if the management container still fails through `127.0.0.11`, add a per-service `dns:` override in `docker-compose.yml`
 
-Example:
+Example (CoreDNS first with ISP fallbacks):
 
 ```yaml
 services:
   netbird-server:
     dns:
-      - 86.54.11.100
-      - 86.54.11.200
+      - 100.115.218.142   # CoreDNS on NetBird overlay (preferred)
+      - 86.54.11.100      # ISP resolver fallback
+      - 86.54.11.200      # ISP resolver fallback
 ```
 
 This override can remain necessary even when the host itself already has working fallback resolvers.
+
+#### IPv6 / split-brain DNS fix: `extra_hosts`
+
+If a service (e.g., Nextcloud, an IdP) is reachable on the internal LAN at an IPv4 address but public DNS returns an IPv6 AAAA record, TLS inside the container will fail (the certificate won't match the LAN IP, or the IPv6 address is unreachable).
+
+**Fix:** Use `extra_hosts` to hard-code the IPv4 address. Docker writes these entries to `/etc/hosts` inside the container, which takes precedence over DNS entirely:
+
+```yaml
+services:
+  netbird-server:
+    extra_hosts:
+      - "nextcloud.example.de:10.0.0.29"   # force IPv4; bypass public DNS
+```
+
+This is the most reliable fix and is not affected by DNS bootstrap timing or resolver ordering.
 
 ### Symptom: geolocation startup crash
 
@@ -499,6 +515,94 @@ Set `server.auth.localAuthDisabled: false` (default) in `config.yaml`. The "Emai
 - Client ID must be alphanumeric only (A-Za-z0-9), 32–64 characters
 - Create a **confidential** client (not public) so Dex can use a `client_secret`
 - See the Nextcloud OIDC IdP skill for the correct `occ oidc:create` syntax
+
+### ⚠️ Dex connector startup race condition (WireGuard route deadlock)
+
+**Symptom:** After recreating the `netbird-server` container, Dex logs show:
+
+```
+ERRO failed to create connector nextcloud: dial tcp 10.0.0.29:443: connect: no route to host
+```
+
+The Nextcloud login button disappears. The connector never recovers — Dex does **not** retry failed connector initialization.
+
+**Root cause:**
+
+1. NetBird policy routing table 7120 contains routes to internal subnets (e.g., `10.0.0.0/24`) advertised by subnet router peers.
+2. Table 7120 is populated by the NetBird daemon **after** it re-establishes peer connections — which only happens after the management server is running and healthy.
+3. When the `netbird-server` container is recreated, the management server briefly goes offline. The daemon loses peers. Routes are re-added only after the daemon reconnects to management.
+4. Dex starts with the management server process, tries to initialize the OIDC connector immediately, and fails because the WireGuard route isn't in table 7120 yet.
+
+**Wrong fix — waiting loop before starting server (creates a deadlock):**
+
+A `/dev/tcp` loop checking TCP connectivity to the IdP before starting the server deadlocks:
+- Loop blocks management server start
+- Daemon can't reconnect (no management server)
+- Routes never populate
+- TCP never works
+- Loop never exits
+
+**Correct fix: two-phase startup script**
+
+1. Start management server in **background** → daemon reconnects → WireGuard routes populate
+2. Wait for TCP to the IdP host (proves route is live)
+3. Gracefully stop background server
+4. `exec` server again → Dex initializes connector with route available
+
+**`start-server.sh`:**
+
+```bash
+#!/usr/bin/bash
+# Phase 1: start server in background so WireGuard routes establish
+/go/bin/netbird-server --config /etc/netbird/config.yaml &
+BG_PID=$!
+echo "[start-server] Phase 1: server running in background (PID=$BG_PID)"
+echo "[start-server] Waiting for TCP connectivity to IdP at 10.0.0.29:443..."
+until (echo > /dev/tcp/10.0.0.29/443) 2>/dev/null; do
+  echo "[start-server] Route not ready yet, sleeping 2s..."
+  sleep 2
+done
+echo "[start-server] Route ready. Stopping background server..."
+python3 -c "import os,signal; os.kill($BG_PID, signal.SIGTERM)"
+sleep 3
+echo "[start-server] Phase 2: restarting server so Dex can initialize connectors"
+exec /go/bin/netbird-server --config /etc/netbird/config.yaml
+```
+
+**Why Python for the stop signal:** The `kill` bash builtin is blocked in some environments. `python3 -c "import os,signal; os.kill($BG_PID, signal.SIGTERM)"` is safe — bash expands `$BG_PID` to an integer before Python sees it.
+
+**`/dev/tcp` requires bash:** `/dev/tcp` is a bash builtin, not available in `sh`. The shebang and entrypoint must use `bash`.
+
+**Prerequisites in container:** The `netbirdio/netbird-server` image is Ubuntu 24.04 LTS. `/usr/bin/bash` and `python3` are available.
+
+**Docker Compose integration:**
+
+```yaml
+services:
+  netbird-server:
+    volumes:
+      - ./start-server.sh:/start-server.sh:ro
+      # ... other volumes ...
+    entrypoint: ["/start-server.sh"]
+    # Remove any CMD — the script ends with exec, replacing itself
+```
+
+After updating `docker-compose.yml`, recreate the container:
+```bash
+docker compose up -d --force-recreate netbird-server
+docker logs -f netbird-server
+```
+
+Expected log sequence:
+```
+[start-server] Phase 1: server running in background (PID=12)
+[start-server] Waiting for TCP connectivity to IdP at 10.0.0.29:443...
+[start-server] Route not ready yet, sleeping 2s...
+[start-server] Route ready. Stopping background server...
+[start-server] Phase 2: restarting server so Dex can initialize connectors
+```
+
+Absence of `failed to create connector` in the second start confirms success.
 
 ---
 
