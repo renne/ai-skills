@@ -652,12 +652,48 @@ If you already operate MariaDB and want HA, consider standard **MariaDB semi-syn
 
 ### Management server
 
-**HA clustering for the management server is NOT officially supported or documented.**
+**HA clustering for the management server is NOT officially supported or documented by NetBird,
+but is achievable in practice because management is stateless (all state in PostgreSQL).**
 
 - Both quickstart scripts deploy a **single management container** with no clustering options.
-- No `replicas` option is provided in the generated `docker-compose.yml`.
-- There is no documented procedure for running multiple management instances.
-- Using PostgreSQL or MySQL as the backend (see above) improves data durability and performance, but does **not** by itself provide HA — a second management instance would conflict.
+- However: running multiple management instances against the same PostgreSQL database works —
+  there is no coordination needed between them (each instance is read/write to the DB directly).
+- Full HA reduces to: **making the database fault-tolerant**.
+
+#### 3-VPS Active-Active Architecture (community pattern)
+
+Full architecture documented at `~/.copilot/networks/netbird/ha-cluster/SKILL.md`.
+
+**Infrastructure:**
+
+| Node | Provider | AS | RAM | Notes |
+|---|---|---|---|---|
+| netbird-1 | Netcup | AS197540 | 1 GB | Existing node |
+| netbird-2 | IONOS | AS8560 | 1 GB | Second node |
+| netbird-3 | Hetzner | AS24940 | 2 GB | Third node (recommended) |
+
+**Critical constraint — circular dependency:**
+NetBird **cannot** be used to network its own cluster nodes. Use a static WireGuard mesh instead:
+```
+NetBird needs management → management needs DB → DB needs inter-VPS network → breaks if NetBird is down
+```
+
+**Inter-VPS network:** Static WireGuard mesh at `10.0.0.1/2/3` on all 3 nodes.
+
+**Database HA:** PostgreSQL + Patroni + etcd (3-node Raft) + HAProxy-on-WireGuard:
+- Each node runs HAProxy; polls Patroni REST (`GET /primary`) to detect current primary
+- NetBird management DSN points to local HAProxy (`host=10.0.0.x`) → transparently forwarded to primary
+- Failover RTO: ~25–40 s; no DNS API scripting required
+- PostgreSQL tuning for 1 GB nodes: `shared_buffers=64MB`, `max_connections=20`, `wal_buffers=4MB`
+
+**Dex (IdP):** Sticky DNS — `idp.nb.example.de` → single A record for OAuth state consistency;
+`insecureSkipEmailVerified: true` required for Nextcloud OIDC.
+
+**Auto-updates:** Watchtower with `WATCHTOWER_LABEL_ENABLE=true`; PostgreSQL and Patroni
+containers labelled `watchtower.enable=false` (major PG upgrades require manual `pg_upgrade`).
+
+**Migration from SQLite:** NetBird auto-migrates on first run with `NB_STORE_ENGINE=postgres`.
+Migration plan: `~/.copilot/networks/netbird/ha-cluster/migration-plan.md`.
 
 ### Relay server (TURN)
 
