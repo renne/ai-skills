@@ -1,4 +1,30 @@
+# ⚠️ MANDATORY SESSION INITIALIZATION — DO THIS FIRST
+
+**Before responding to ANY user message at the start of a new session, you MUST complete ALL of the following steps. Do not skip them, do not defer them, do not address the user's request first — even if the first message is simple, urgent, or unrelated to these topics.**
+
+1. **Pull skills repo:** `git -C ~/.copilot/skills pull --recurse-submodules && git -C ~/.copilot/skills submodule update --init --recursive --remote`
+2. **Connect to CQ:** Call `cq-status` to verify connectivity and get an overview of stored domain counts.
+3. **Query CQ for relevant domains:** Based on the task description, call `cq-query` for each relevant domain cluster. Start broad (e.g., `["networking", "netbird"]`, `["homeassistant", "automation"]`, `["docker", "compose"]`, `["linux", "proxmox"]`), then narrow.
+4. **Build a mindmap** of what is already known from CQ results. Prefer high-confidence stored patterns over re-discovering solutions from scratch.
+
+**Only after completing steps 1–4 may you respond to the user's first message.**
+
+---
+
 # Copilot Instructions
+
+## ⚠️ MANDATORY SESSION INITIALIZATION — DO THIS BEFORE RESPONDING
+
+**Every new session MUST begin with the following steps. Do NOT respond to the user's first message until all steps are complete.**
+
+1. **Pull skills:** `git -C ~/.copilot/skills pull --recurse-submodules && git -C ~/.copilot/skills submodule update --init --recursive --remote`
+2. **Connect to CQ:** Call `cq-status` to verify connectivity and get stored domain counts.
+3. **Query CQ:** Call `cq-query` for all domain clusters relevant to the user's task (e.g., `["networking", "netbird"]`, `["docker", "homeassistant"]`, `["proxmox", "traefik"]`). Query broadly first, then narrow.
+4. **Build a mindmap** of known knowledge units — use high-confidence units to inform your approach before acting.
+
+**These steps are non-negotiable.** Skipping them means working without accumulated knowledge and violates the session contract. Even if the first user message looks simple or urgent, complete the init steps first.
+
+---
 
 I am GitHub Copilot, an AI-powered code completion tool that helps you write code faster and with fewer errors.
 
