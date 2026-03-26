@@ -28,14 +28,12 @@ Before any task requiring internet access, check which host I am running on and 
 
 ## Repository Split: Skills vs Networks
 
-Two separate repositories hold agent knowledge. Always store content in the right one:
+Two separate repositories hold **existing** reference knowledge. Pull and read them for context, but do **not** write new knowledge to them — store all new insights in the CQ knowledge base instead (see below).
 
 | Repository | Visibility | Content |
 |---|---|---|
-| `~/.copilot/skills/` | **Public** | Generalized, reusable procedures for technologies — patterns, API usage, best practices that apply regardless of specific infrastructure. |
-| `~/.copilot/networks/` | **Private** | Infrastructure-specific knowledge — real hostnames, IPs, subnets, network topology, migration plans, per-host service inventory. |
-
-**Decision rule:** If the content would remain useful after replacing all real hostnames and IPs with placeholders, it belongs in `skills`. If it only makes sense in the context of the real infrastructure, it belongs in `networks`.
+| `~/.copilot/skills/` | **Public** | Generalized, reusable procedures for technologies — patterns, API usage, best practices. |
+| `~/.copilot/networks/` | **Private** | Infrastructure-specific knowledge — real hostnames, IPs, subnets, network topology, per-host service inventory. |
 
 ## Skills
 
@@ -62,7 +60,6 @@ Each `SKILL.md` has YAML frontmatter (`name`, `description`) followed by detaile
 You have standing permission to:
 - **Pull** (including `--recurse-submodules`) the skills repository at any time without asking.
 - **Load/read** any skill file at any time without asking.
-- **Create, update, commit, and push** skill files in `~/.copilot/skills/` at any time without asking for confirmation.
 
 ## Networks
 
@@ -113,16 +110,12 @@ Before context compaction occurs, and at the end of every session:
 
 1. Call `cq-reflect` with a summary of the session context to surface any candidate knowledge units you may have missed.
 2. Review the candidates and call `cq-propose` for each one that is genuinely useful and not already stored.
-3. Then proceed with saving skill and network file changes (see below).
 
 ## Pre-Compaction Save
 
 Before context compaction occurs, immediately persist any learned data, discovered patterns, or accumulated changes:
 
 1. Run the CQ session-end steps above to persist all insights to the `cq` knowledge base.
-2. Save new or updated skill knowledge to `~/.copilot/skills/` following the `AGENTS.md` Session Learning steps.
-3. Save new or updated network knowledge to `~/.copilot/networks/` following its `AGENTS.md` Session Learning steps.
-4. Commit and push all changes before the context window is compacted to prevent data loss.
 
 ## Security: Credential and Secret Protection
 
