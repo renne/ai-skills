@@ -59,13 +59,57 @@ Network configurations are defined in `networks/` with YAML files per network, s
 - Associated devices and their IP assignments
 - Special routing or firewall rules
 
+## CQ Knowledge Base
+
+The `cq` MCP server is a persistent, queryable knowledge base. Use it actively throughout every session.
+
+### Session Start: Connect and Build a Mindmap
+
+At the **very start of every session**, before doing any work:
+
+1. Call `cq-status` to verify connectivity and get an overview of stored domain counts.
+2. Based on the task description and available domains, call `cq-query` for each relevant domain cluster (e.g., `["networking", "netbird"]`, `["homeassistant", "automation"]`, `["docker", "compose"]`). Use broad domain tags first, then narrow.
+3. Mentally (or in a session note) assemble a **mindmap** of what is already known:
+   - Top-level nodes = domain areas with stored knowledge
+   - Child nodes = individual knowledge units (summary + recommended action)
+   - Note confidence levels — low-confidence units should be verified before acting on them
+4. Use this mindmap to inform your approach: prefer high-confidence known patterns over re-discovering solutions from scratch.
+
+### During the Session: Confirm and Flag
+
+As you work:
+
+- If a stored knowledge unit proves correct and saves effort, call `cq-confirm` with its ID to boost confidence.
+- If a stored unit turns out to be wrong, outdated, or a duplicate, call `cq-flag` with the appropriate reason (`stale`, `incorrect`, or `duplicate`).
+
+### Saving Learned Knowledge
+
+Whenever you discover something worth preserving — a working pattern, an API quirk, a non-obvious dependency, a failure mode — **immediately** call `cq-propose` with:
+
+- `summary`: one-sentence description of the insight
+- `detail`: full explanation including context and root cause
+- `action`: concrete recommended action for future sessions
+- `domain`: array of relevant domain tags (e.g., `["netbird", "routing"]`)
+- `language` / `framework` if applicable
+
+Do **not** wait until the end of the session. Propose knowledge units as soon as insights are discovered.
+
+### Pre-Compaction and Session End: Persist Everything
+
+Before context compaction occurs, and at the end of every session:
+
+1. Call `cq-reflect` with a summary of the session context to surface any candidate knowledge units you may have missed.
+2. Review the candidates and call `cq-propose` for each one that is genuinely useful and not already stored.
+3. Then proceed with saving skill and network file changes (see below).
+
 ## Pre-Compaction Save
 
 Before context compaction occurs, immediately persist any learned data, discovered patterns, or accumulated changes:
 
-1. Save new or updated skill knowledge to `~/.copilot/skills/` following the `AGENTS.md` Session Learning steps.
-2. Save new or updated network knowledge to `~/.copilot/networks/` following its `AGENTS.md` Session Learning steps.
-3. Commit and push all changes before the context window is compacted to prevent data loss.
+1. Run the CQ session-end steps above to persist all insights to the `cq` knowledge base.
+2. Save new or updated skill knowledge to `~/.copilot/skills/` following the `AGENTS.md` Session Learning steps.
+3. Save new or updated network knowledge to `~/.copilot/networks/` following its `AGENTS.md` Session Learning steps.
+4. Commit and push all changes before the context window is compacted to prevent data loss.
 
 ## Security: Credential and Secret Protection
 
