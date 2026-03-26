@@ -13,19 +13,6 @@
 
 # Copilot Instructions
 
-## ⚠️ MANDATORY SESSION INITIALIZATION — DO THIS BEFORE RESPONDING
-
-**Every new session MUST begin with the following steps. Do NOT respond to the user's first message until all steps are complete.**
-
-1. **Pull skills:** `git -C ~/.copilot/skills pull --recurse-submodules && git -C ~/.copilot/skills submodule update --init --recursive --remote`
-2. **Connect to CQ:** Call `cq-status` to verify connectivity and get stored domain counts.
-3. **Query CQ:** Call `cq-query` for all domain clusters relevant to the user's task (e.g., `["networking", "netbird"]`, `["docker", "homeassistant"]`, `["proxmox", "traefik"]`). Query broadly first, then narrow.
-4. **Build a mindmap** of known knowledge units — use high-confidence units to inform your approach before acting.
-
-**These steps are non-negotiable.** Skipping them means working without accumulated knowledge and violates the session contract. Even if the first user message looks simple or urgent, complete the init steps first.
-
----
-
 I am GitHub Copilot, an AI-powered code completion tool that helps you write code faster and with fewer errors.
 
 ## Core Principles
