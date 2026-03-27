@@ -111,13 +111,17 @@ Each skill is a directory containing a `SKILL.md` file following the [VS Code Ag
 | [SMTP Configuration (email delivery, Gmail, Outlook, SendGrid, OAuth2 proxy)](vaultwarden/smtp-configuration/SKILL.md) | https://github.com/dani-garcia/vaultwarden/wiki/SMTP-Configuration |
 | [Backup & Restore (SQLite backup, data folder, automated backups, restore)](vaultwarden/backup-and-restore/SKILL.md) | https://github.com/dani-garcia/vaultwarden/wiki/Backing-up-your-vault |
 
-### Anthropics (submodule)
+### Anthropics
 
-Skills from [anthropics/skills](https://github.com/anthropics/skills) are included as a Git submodule at [`anthropics/skills`](anthropics/skills).
+| Skill | Source |
+|-------|--------|
+| [Skills directory (algorithmic-art, brand-guidelines, canvas-design, claude-api, doc-coauthoring, docx, frontend-design, mcp-builder, pdf, pptx, webapp-testing, xlsx, and more)](https://github.com/anthropics/skills/tree/main/skills) | https://github.com/anthropics/skills |
 
-### VoltAgent (submodule)
+### VoltAgent
 
-Skills from [VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills) are included as a Git submodule at [`voltagent/awesome-agent-skills`](voltagent/awesome-agent-skills).
+| Skill | Source |
+|-------|--------|
+| [Awesome Agent Skills](https://github.com/VoltAgent/awesome-agent-skills) | https://github.com/VoltAgent/awesome-agent-skills |
 
 ### Traefik
 
