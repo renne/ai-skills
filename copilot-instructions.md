@@ -2,7 +2,7 @@
 
 **Before responding to ANY user message at the start of a new session, you MUST complete ALL of the following steps. Do not skip them, do not defer them, do not address the user's request first — even if the first message is simple, urgent, or unrelated to these topics.**
 
-1. **Pull skills repo:** `git -C ~/.copilot/skills pull --recurse-submodules && git -C ~/.copilot/skills submodule update --init --recursive --remote`
+1. **Pull skills repo:** `git -C ~/.copilot/skills pull`
 2. **Get current date and time:** Run `date` and keep the result in context for the entire session. Use it to provide time-aware answers and avoid presenting outdated information as current.
 3. **Connect to CQ:** Call `cq-status` to verify connectivity and get an overview of stored domain counts.
 4. **Query CQ for relevant domains:** Based on the task description, call `cq-query` for each relevant domain cluster. Start broad (e.g., `["networking", "netbird"]`, `["homeassistant", "automation"]`, `["docker", "compose"]`, `["linux", "proxmox"]`), then narrow.
@@ -38,47 +38,15 @@ I am GitHub Copilot, an AI-powered code completion tool that helps you write cod
 
 Before any task requiring internet access, check which host I am running on and how the internet uplink works. If I am unable to connect to the internet, inform the user and ask for further instructions.
 
-## Repository Split: Skills vs Networks
+## Skills Repository
 
-Two separate repositories hold **existing** reference knowledge. Pull and read them for context, but do **not** write new knowledge to them — store all new insights in the CQ knowledge base instead (see below).
-
-| Repository | Visibility | Content |
-|---|---|---|
-| `~/.copilot/skills/` | **Public** | Generalized, reusable procedures for technologies — patterns, API usage, best practices. |
-| `~/.copilot/networks/` | **Private** | Infrastructure-specific knowledge — real hostnames, IPs, subnets, network topology, per-host service inventory. |
-
-## Skills
-
-A library of agent skills is maintained at `~/.copilot/skills/` and kept up to date via Git with submodules.
-
-Before starting any task:
-1. Search `~/.copilot/skills/` for relevant `SKILL.md` files matching the task domain.
-2. Read and follow the instructions in any matching skill before proceeding.
-
-### Skill Locations
-
-Skills follow two path patterns depending on their origin:
-
-- **Local skills:** `~/.copilot/skills/<category>/<skill-name>/SKILL.md`
-  - Examples: `netbird/`, `traefik/`, `docker-compose/`, `proxmox/`, `home-assistant/`, `coredns/`, `moodle/`, `nextcloud/`, `gramps-web/`
-- **Submodule skills:** `~/.copilot/skills/<submodule>/<submodule-skills-dir>/<skill-name>/SKILL.md`
-  - Examples: `anthropics/skills/skills/<skill-name>/SKILL.md`, `voltagent/awesome-agent-skills/<skill-name>/SKILL.md`
-
-Each `SKILL.md` has YAML frontmatter (`name`, `description`) followed by detailed instructions.
+The `~/.copilot/skills/` repository contains `AGENTS.md`, `copilot-instructions.md`, and hardware reference files. All skills and learned procedures are stored in the CQ knowledge base — query CQ at the start of every session to retrieve them.
 
 ### Standing Permissions
 
 You have standing permission to:
-- **Pull** (including `--recurse-submodules`) the skills repository at any time without asking.
-- **Load/read** any skill file at any time without asking.
-
-## Networks
-
-Network configurations are defined in `networks/` with YAML files per network, specifying:
-- Network name, description, subnet, and IP range
-- Gateway and DNS settings
-- Associated devices and their IP assignments
-- Special routing or firewall rules
+- **Pull** the skills repository at any time without asking.
+- **Load/read** any file at any time without asking.
 
 ## CQ Knowledge Base
 
