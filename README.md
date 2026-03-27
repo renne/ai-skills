@@ -2,7 +2,7 @@
 
 AI agent skills collection.
 
-Domain skills are stored in the personal [CQ knowledge base](https://cq-mcp.bartschnet.de). This repository contains external skill references and hardware files. See [AGENTS.md](AGENTS.md) for contribution rules.
+Domain skills are stored in the [CQ knowledge base](https://cq-mcp.bartschnet.de). This repository contains hardware files only. See [AGENTS.md](AGENTS.md) for contribution rules.
 
 ## Hardware
 
