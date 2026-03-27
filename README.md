@@ -4,16 +4,6 @@ AI agent skills collection.
 
 Domain skills are stored in the personal [CQ knowledge base](https://cq-mcp.bartschnet.de). This repository contains external skill references and hardware files. See [AGENTS.md](AGENTS.md) for contribution rules.
 
-## External Skills
-
-### Anthropics
-
-[Anthropics Skills](https://github.com/anthropics/skills/tree/main/skills)
-
-### VoltAgent
-
-[VoltAgent Awesome Agent Skills](https://github.com/VoltAgent/awesome-agent-skills)
-
 ## Hardware
 
 ### Huananzhi H12D-8D
