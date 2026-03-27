@@ -112,7 +112,7 @@ Before context compaction occurs, and at the end of every session:
 
 1. Call `cq-reflect` with a summary of the session context to surface any candidate knowledge units you may have missed.
 2. Review the candidates and call `cq-propose` for each one that is genuinely useful and not already stored.
-3. If `AGENTS.md` or `copilot-instructions.md` were updated during the session, run `git -C ~/.copilot/skills add -A && git -C ~/.copilot/skills commit -m "<message>"` and push.
+3. If `AGENTS.md` or `copilot-instructions.md` were updated during the session, stage and commit only if there are uncommitted changes: `git -C ~/.copilot/skills add -A && git -C ~/.copilot/skills diff --cached --quiet || (git -C ~/.copilot/skills commit -m "<message>" && git -C ~/.copilot/skills push)`. Skip silently if there is nothing new to commit.
 
 ## Security: Credential and Secret Protection
 
