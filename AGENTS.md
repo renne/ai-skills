@@ -13,7 +13,7 @@ This repository is a collection of [Agent Skills](https://code.visualstudio.com/
 - Tool usage guides and reference patterns.
 - Skills that would be useful in *any* deployment of a given technology.
 
-### ❌ Does NOT belong here → goes in `networks` (private)
+### ❌ Does NOT belong here → store in CQ (private knowledge base)
 
 - Specific host names, IP addresses, subnet assignments, or VLAN IDs.
 - Network topology maps or routing decisions tied to real infrastructure.
@@ -21,7 +21,7 @@ This repository is a collection of [Agent Skills](https://code.visualstudio.com/
 - Per-host service inventory (e.g., "Nextcloud runs on 10.0.0.29").
 - Any detail that reveals the structure of personal or organizational infrastructure.
 
-**Rule of thumb:** If the content would still be correct and useful after replacing all hostnames and IPs with placeholders, it belongs in `skills`. If it only makes sense in the context of the real infrastructure, it belongs in `networks`.
+**Rule of thumb:** If the content would still be correct and useful after replacing all hostnames and IPs with placeholders, it belongs in `skills`. If it only makes sense in the context of the real infrastructure, store it in CQ with appropriate domain tags.
 
 ## Directory Structure
 
@@ -90,6 +90,16 @@ Specifically, always document:
 Place these under a `## Known Quirks and Limitations` or `## Troubleshooting` heading in the relevant `SKILL.md`. Use `⚠️` to mark critical pitfalls that would cause hard-to-diagnose failures.
 
 The goal is to avoid duplicating debugging effort across sessions. If you wasted time on something, capture it so future sessions don't repeat the same journey.
+
+## Network Overview Before Any Changes
+
+**Before planning or making any change to the network** (routing, DNS, firewall rules, VPN peers, IP assignments, etc.), always get an overview of the current network structure first:
+
+1. Query CQ with relevant domain tags (e.g., `weissdornweg`, `friedensstrasse`, `netbird`, `proxmox`, `docker`) to retrieve the current topology, IP assignments, and service locations.
+2. If live state is needed, query the relevant systems directly (e.g., Netbird API for peers/groups/policies, CoreDNS config, Traefik routing rules).
+3. Only after understanding the current state, plan and execute changes.
+
+This prevents unintended side effects from stale assumptions (e.g., deleting a peer that is still a router, reconfiguring DNS without knowing what depends on it, or introducing routing conflicts).
 
 ## Adding a New Skill
 
