@@ -105,6 +105,22 @@ Whenever you discover something worth preserving — a working pattern, an API q
 
 Do **not** wait until the end of the session. Propose knowledge units as soon as insights are discovered.
 
+### ⚑ Per-Turn CQ Checklist
+
+**Before finishing every response**, ask yourself:
+
+> *"Did I learn or confirm something this turn that is worth storing in CQ?"*
+
+If the answer is **yes**, call `cq-propose` (or `cq-confirm` / `cq-flag`) **in the same response turn** — not in the next one, not at session end. This includes:
+
+- A command that failed in an unexpected way (error messages, exit codes)
+- A tool parameter that behaved differently than documented
+- A workaround discovered for a recurring problem
+- A configuration pattern that worked (or didn't)
+- Any non-obvious dependency or ordering constraint
+
+**This checklist is mandatory.** Skipping it to finish faster is a compliance failure.
+
 ### Pre-Compaction and Session End: Persist Everything
 
 Before context compaction occurs, and at the end of every session:
