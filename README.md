@@ -21,14 +21,11 @@ Domain skills are stored in the personal [CQ knowledge base](https://cq-mcp.bart
 | File | Description |
 |------|-------------|
 | [H12D-8DManual.pdf](hardware/huananzhi-h12d-8d/H12D-8DManual.pdf) | Mainboard manual |
-| [directory.svg](hardware/huananzhi-h12d-8d/images/directory.svg) | Table of contents |
-| [introduction-packing.svg](hardware/huananzhi-h12d-8d/images/introduction-packing.svg) | Introduction & packing |
 | [board-overview.svg](hardware/huananzhi-h12d-8d/images/board-overview.svg) | Board overview |
 | [connector-pinouts.svg](hardware/huananzhi-h12d-8d/images/connector-pinouts.svg) | Connector pinouts |
 | [power-fan-pinouts.svg](hardware/huananzhi-h12d-8d/images/power-fan-pinouts.svg) | Power/fan pinouts |
 | [installation-cpu-memory-gpu.svg](hardware/huananzhi-h12d-8d/images/installation-cpu-memory-gpu.svg) | CPU/memory/GPU installation |
 | [drivers-m2-installation.svg](hardware/huananzhi-h12d-8d/images/drivers-m2-installation.svg) | Drivers & M.2 installation |
-| [bios-warranty.svg](hardware/huananzhi-h12d-8d/images/bios-warranty.svg) | BIOS settings & warranty |
 
 ### Machinist MR9A-V1
 
